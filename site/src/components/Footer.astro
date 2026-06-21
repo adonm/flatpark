@@ -1,0 +1,40 @@
+---
+import { getCollection } from 'astro:content';
+
+const order = ['Project', 'Docs', 'Community', 'Legal'];
+const pages = (await getCollection('pages')).filter((p) => !p.data.hideFromFooter);
+
+const groups = order
+  .map((name) => ({
+    name,
+    items: pages
+      .filter((p) => p.data.group === name)
+      .sort((a, b) => a.data.order - b.data.order)
+      .map((p) => ({ href: `/${p.id}/`, label: p.data.title })),
+  }))
+  .filter((g) => g.items.length);
+
+// External links appended to a group (GitHub lives under Community).
+const externals = { Community: [{ href: 'https://github.com/jing2uo/flatpark', label: 'GitHub' }] };
+for (const g of groups) if (externals[g.name]) g.items.push(...externals[g.name]);
+---
+
+<footer class="border-t border-line">
+  <div class="mx-auto max-w-6xl px-5 py-10">
+    <div class="grid grid-cols-2 gap-8 sm:grid-cols-4">
+      {groups.map((g) => (
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wide text-muted">{g.name}</h3>
+          <ul class="mt-3 flex flex-col gap-2 text-sm">
+            {g.items.map((it) => (
+              <li><a class="text-ink/80 hover:text-brand" href={it.href}>{it.label}</a></li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+    <p class="mt-8 text-xs text-muted">
+      FlatPark · community Flatpak hub · packaged apps remain their vendors' property
+    </p>
+  </div>
+</footer>

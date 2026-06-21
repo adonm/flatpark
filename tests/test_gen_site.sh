@@ -94,4 +94,12 @@ assert_contains "$detail" "/setup/"
 # Setup page carries the remote-add command.
 assert_file "$setup"
 assert_contains "$setup" "flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo"
+
+# Content pages (Astro content collection) + global footer.
+about="$tmp/site/about/index.html"
+assert_file "$about"
+assert_contains "$about" "About FlatPark"
+# The global footer renders on every page — check it on the catalog index.
+assert_contains "$index" "/about/"
+assert_contains "$index" "community Flatpak hub"
 echo "test_gen_site: PASS"
