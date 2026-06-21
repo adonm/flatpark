@@ -94,4 +94,33 @@ assert_contains "$detail" "/setup/"
 # Setup page carries the remote-add command.
 assert_file "$setup"
 assert_contains "$setup" "flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo"
+
+# Content pages (Astro content collection) + global footer.
+about="$tmp/site/about/index.html"
+assert_file "$about"
+assert_contains "$about" "About FlatPark"
+assert_contains "$about" '<meta name="description"'
+# The global footer renders on every page — check it on the catalog index.
+assert_contains "$index" "/about/"
+assert_contains "$index" "community Flatpak hub"
+
+assert_file "$tmp/site/policies/index.html"
+assert_contains "$tmp/site/policies/index.html" "De-listing"
+assert_file "$tmp/site/trust/index.html"
+assert_contains "$tmp/site/trust/index.html" "extra-data"
+assert_contains "$index" "/policies/"
+assert_contains "$index" "/trust/"
+assert_file "$tmp/site/contributing/index.html"
+assert_contains "$tmp/site/contributing/index.html" "flatpark.yml"
+assert_file "$tmp/site/guide/index.html"
+assert_contains "$tmp/site/guide/index.html" "remote-add"
+assert_contains "$index" "/contributing/"
+assert_contains "$index" "/guide/"
+assert_file "$tmp/site/conduct/index.html"
+assert_contains "$tmp/site/conduct/index.html" "Code of conduct"
+assert_contains "$index" "/conduct/"
+assert_file "$tmp/site/legal/index.html"
+assert_contains "$tmp/site/legal/index.html" "no accounts"
+assert_contains "$tmp/site/legal/index.html" "without warranty"
+assert_contains "$index" "/legal/"
 echo "test_gen_site: PASS"
