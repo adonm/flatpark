@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.electerm.Electerm</id>
+  <name>electerm</name>
+  <summary>Terminal, SSH, SFTP, FTP, Telnet, Serial, RDP, VNC and Spice client</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="org.electerm">
+    <name>electerm</name>
+  </developer>
+  <url type="homepage">https://electerm.org</url>
+  <url type="bugtracker">https://github.com/electerm/electerm/issues</url>
+  <url type="vcs-browser">https://github.com/electerm/electerm</url>
+  <description>
+    <p>This is a community package of electerm, maintained independently.</p>
+    <p>electerm is a cross-platform terminal and remote-session client: SSH, SFTP, FTP, Telnet, serial port, RDP, VNC and Spice, with a tabbed UI, a built-in file manager, themes, sync and quick commands.</p>
+    <p>Permissions: by default this package keeps a tight sandbox — network and display only — which is enough for SSH/Telnet/RDP/VNC sessions and for transferring files chosen through the file portal. The app's own settings and imported keys live inside the sandbox. A few optional capabilities are not granted by default; enable the ones you need with "flatpak override":</p>
+    <ul>
+      <li>Reuse your existing host SSH keys/config: <code>flatpak override --user --filesystem=~/.ssh:ro org.electerm.Electerm</code></li>
+      <li>Serial-port connections: <code>flatpak override --user --device=all org.electerm.Electerm</code></li>
+      <li>Browse your whole home directory in the SFTP manager: <code>flatpak override --user --filesystem=home org.electerm.Electerm</code></li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">org.electerm.Electerm.desktop</launchable>
+  <categories>
+    <category>Network</category>
+    <category>System</category>
+    <category>TerminalEmulator</category>
+  </categories>
+  <keywords>
+    <keyword>terminal</keyword>
+    <keyword>ssh</keyword>
+    <keyword>sftp</keyword>
+    <keyword>ftp</keyword>
+    <keyword>telnet</keyword>
+    <keyword>serial</keyword>
+    <keyword>rdp</keyword>
+    <keyword>vnc</keyword>
+    <keyword>spice</keyword>
+  </keywords>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <content_rating type="oars-1.1" />
+  <provides>
+    <binary>electerm</binary>
+  </provides>
+  <releases>
+    <release version="3.15.69" date="2026-06-21" />
+  </releases>
+</component>

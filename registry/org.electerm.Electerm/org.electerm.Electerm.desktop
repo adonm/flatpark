@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=electerm
+Comment=Terminal, SSH, SFTP, FTP, Telnet, Serial, RDP, VNC and Spice client
+Exec=electerm
+Icon=org.electerm.Electerm
+Terminal=false
+Categories=Network;System;TerminalEmulator;
+StartupWMClass=electerm
+Keywords=terminal;ssh;sftp;ftp;telnet;serial;rdp;vnc;spice;
