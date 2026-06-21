@@ -1,0 +1,23 @@
+id: org.electerm.Electerm
+name: electerm
+summary: Terminal, SSH, SFTP, FTP, Telnet, Serial, RDP, VNC and Spice client
+website: https://electerm.org
+source_url: https://github.com/electerm/electerm
+build:
+  manifest: org.electerm.Electerm.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Network
+  tags:
+    - SSH
+    - Terminal
+    - SFTP
+    - RDP
+    - VNC
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  extra_data_first: true
+  dangerous_permissions: []
