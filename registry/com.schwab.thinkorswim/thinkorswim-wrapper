@@ -89,4 +89,30 @@ else
     export INSTALL4J_ADD_VM_PARAMS="$extra_vm_params"
 fi
 
+# Optional HiDPI scaling, opt-in via UI_SCALE (e.g. flatpak override
+# --user --env=UI_SCALE=2). thinkorswim ships `sun.java2d.uiScale.enabled=
+# false` in its vmoptions, and the install4j launcher appends the vmoptions file
+# *after* $INSTALL4J_ADD_VM_PARAMS — so an env-injected -D loses to the file
+# (the JVM takes the last -D). The file is the only place that wins, so we edit
+# it directly. Idempotent and re-applied each launch, so it survives thinkorswim
+# self-updates that rewrite the file. Unset => file left untouched (manual edits
+# are never clobbered). To force 1x while opted in, set UI_SCALE=1.
+vmopts="$app_dir/thinkorswim.vmoptions"
+case "${UI_SCALE:-}" in
+    '') : ;;
+    *[!0-9.%]*) echo "thinkorswim: ignoring invalid UI_SCALE='$UI_SCALE'" >&2 ;;
+    *)
+        if [ -f "$vmopts" ]; then
+            tmp="$vmopts.tos-scale.$$"
+            if grep -vE '^-Dsun\.java2d\.uiScale(\.enabled)?=' "$vmopts" > "$tmp"; then
+                printf '%s\n' '-Dsun.java2d.uiScale.enabled=true' \
+                    "-Dsun.java2d.uiScale=$UI_SCALE" >> "$tmp"
+                mv "$tmp" "$vmopts"
+            else
+                rm -f "$tmp"
+            fi
+        fi
+        ;;
+esac
+
 exec "$app_dir/thinkorswim" "$@"

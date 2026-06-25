@@ -13,6 +13,7 @@
   <description>
     <p>This is a community package of thinkorswim and not officially supported by Charles Schwab &amp; Co., Inc.</p>
     <p>thinkorswim is a desktop trading platform for Charles Schwab brokerage accounts, with charting, analysis, and order entry for stocks, options, and futures. A paperMoney simulated-trading mode is included.</p>
+    <p>HiDPI note: if the interface looks too small on a high-resolution display, set the UI_SCALE environment variable to scale it — for example, run <code>flatpak override --user --env=UI_SCALE=2 com.schwab.thinkorswim</code> for 200% scaling.</p>
   </description>
   <launchable type="desktop-id">com.schwab.thinkorswim.desktop</launchable>
   <categories>
