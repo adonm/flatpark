@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Self-hosted Inter (variable, latin) — the type identity actually ships now
+   instead of silently falling back to system fonts. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin-variable.woff2") format("woff2");
+}
+
 /* FlatPark theme tokens — Flathub-style light palette with GNOME blue. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -15,9 +25,27 @@
   --color-canvas: #fafafb;
 }
 
+/* Dark theme: just flip the tokens — every component uses semantic colors
+   (bg-canvas / text-ink / border-line / bg-surface …) so they follow along. */
+html.dark {
+  --color-brand: #5e9bef;
+  --color-brand-dark: #7cb0f5;
+  --color-ink: #e8e9ec;
+  --color-muted: #9aa0ab;
+  --color-line: #2c2f37;
+  --color-surface: #1f2228;
+  --color-canvas: #16181d;
+  color-scheme: dark;
+}
+
 html {
   font-family: var(--font-sans);
 }
+
+/* Theme toggle: show the moon in light mode, the sun in dark mode. */
+.theme-sun { display: none; }
+html.dark .theme-sun { display: inline; }
+html.dark .theme-moon { display: none; }
 
 body {
   background: var(--color-canvas);
@@ -55,6 +83,20 @@ body {
 
 .seg.is-active {
   @apply bg-canvas text-ink;
+}
+
+/* Browse-page category sidebar buttons. */
+.seg-side {
+  @apply flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink/80 hover:bg-canvas;
+}
+.seg-side b {
+  @apply text-xs font-bold text-muted;
+}
+.seg-side.is-active {
+  @apply bg-brand text-white;
+}
+.seg-side.is-active b {
+  @apply text-white/80;
 }
 
 /* Hero folds away on first scroll to reveal the catalog. The 1fr -> 0fr grid
