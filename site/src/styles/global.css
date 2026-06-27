@@ -25,9 +25,27 @@
   --color-canvas: #fafafb;
 }
 
+/* Dark theme: just flip the tokens — every component uses semantic colors
+   (bg-canvas / text-ink / border-line / bg-surface …) so they follow along. */
+html.dark {
+  --color-brand: #5e9bef;
+  --color-brand-dark: #7cb0f5;
+  --color-ink: #e8e9ec;
+  --color-muted: #9aa0ab;
+  --color-line: #2c2f37;
+  --color-surface: #1f2228;
+  --color-canvas: #16181d;
+  color-scheme: dark;
+}
+
 html {
   font-family: var(--font-sans);
 }
+
+/* Theme toggle: show the moon in light mode, the sun in dark mode. */
+.theme-sun { display: none; }
+html.dark .theme-sun { display: inline; }
+html.dark .theme-moon { display: none; }
 
 body {
   background: var(--color-canvas);

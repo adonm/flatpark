@@ -11,6 +11,16 @@ const ogImage = image ? (Astro.site ? new URL(image, Astro.site).href : image) :
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>
+      // Set theme before paint to avoid a flash. localStorage wins; else system.
+      (() => {
+        try {
+          const t = localStorage.getItem('theme');
+          const dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="theme-color" content="#3584e4" />
     <link rel="canonical" href={canonical} />
@@ -37,6 +47,12 @@ const ogImage = image ? (Astro.site ? new URL(image, Astro.site).href : image) :
 
     <script>
       // Catalog search (index only; no-ops elsewhere) + copy buttons.
+      // Dark/light toggle: flip the class, remember the choice.
+      document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+        const dark = document.documentElement.classList.toggle('dark');
+        try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
+      });
+
       const searchInput = document.querySelector('[data-search]');
       const cards = Array.from(document.querySelectorAll('[data-app-card]'));
       const empty = document.querySelector('[data-empty]');
