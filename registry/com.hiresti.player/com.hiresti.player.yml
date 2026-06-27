@@ -1,0 +1,56 @@
+id: com.hiresti.player
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: hiresti
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # HiresTI is a GTK4/libadwaita + WebKitGTK6 Python app. The upstream .deb
+  # vendors all its Python deps (tidalapi, requests, PIL, …) under
+  # usr/share/hiresti/libs and ships two prebuilt Rust .so (audio/viz core);
+  # everything else — python3.13, PyGObject, GTK4, libadwaita, WebKitGTK 6,
+  # GStreamer, libusb, libasound — is resolved from org.gnome.Platform//50.
+  - --share=ipc
+  # Streaming from TIDAL.
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Audio out via PipeWire/PulseAudio. NOTE: bit-perfect / exclusive playback to
+  # a USB DAC needs raw device access (the Rust audio core links libusb). That is
+  # NOT granted by default to keep the sandbox tight; enable it per-user with
+  #   flatpak override --user --device=all com.hiresti.player
+  # (documented in the metainfo). Normal playback works without it.
+  - --socket=pulseaudio
+  # libGL for WebKit rendering and the GL spectrum visualizer.
+  - --device=dri
+modules:
+  - name: hiresti
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 hiresti-wrapper /app/bin/hiresti
+      - install -Dm644 com.hiresti.player.desktop /app/share/applications/com.hiresti.player.desktop
+      - install -Dm644 com.hiresti.player.metainfo.xml /app/share/metainfo/com.hiresti.player.metainfo.xml
+      - install -Dm644 com.hiresti.player.png /app/share/icons/hicolor/512x512/apps/com.hiresti.player.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: hiresti.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/yelanxin/hiresTI/releases/download/v1.9.7/hiresti_1.9.7_amd64_debian13.deb
+        sha256: 8ae11eed3028fbf80de2feaab7ed415530a0ba6336798339ae07d9ba693ca6f6
+        size: 25161016
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: hiresti-wrapper
+      - type: file
+        path: com.hiresti.player.desktop
+      - type: file
+        path: com.hiresti.player.metainfo.xml
+      - type: file
+        path: com.hiresti.player.png

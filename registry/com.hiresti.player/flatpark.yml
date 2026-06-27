@@ -1,0 +1,23 @@
+id: com.hiresti.player
+name: HiresTI
+summary: High-res TIDAL client with bit-perfect playback
+website: https://github.com/yelanxin/hiresTI
+source_url: https://github.com/yelanxin/hiresTI
+build:
+  manifest: com.hiresti.player.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: AudioVideo
+  tags:
+    - TIDAL
+    - Music
+    - Audio
+    - Player
+    - HiFi
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  extra_data_first: true
+  dangerous_permissions: []

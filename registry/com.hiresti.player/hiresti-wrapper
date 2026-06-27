@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+# HiresTI is a GTK4/libadwaita Python app staged by apply_extra to
+# /app/extra/hiresti. We reproduce the upstream launcher exactly: cd into the
+# app dir and run main.py with the vendored deps (libs/) ahead of the app root
+# on PYTHONPATH. python3, PyGObject and GTK4/WebKit/GStreamer come from
+# org.gnome.Platform//50; the vendored cpython-313 wheels match its python3.13.
+APP=/app/extra/hiresti
+
+# WebKitGTK's DMABUF renderer paints a blank web view under many drivers inside
+# the Flatpak sandbox; disabling it is the reliable default.
+export WEBKIT_DISABLE_DMABUF_RENDERER=1
+export PYTHONPATH="$APP/libs:$APP"
+
+cd "$APP"
+exec python3 "$APP/main.py" "$@"

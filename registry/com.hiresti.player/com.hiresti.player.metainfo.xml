@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.hiresti.player</id>
+  <name>HiresTI</name>
+  <summary>High-res TIDAL client with bit-perfect playback</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="com.hiresti">
+    <name>Eason</name>
+  </developer>
+  <url type="homepage">https://github.com/yelanxin/hiresTI</url>
+  <url type="bugtracker">https://github.com/yelanxin/hiresTI/issues</url>
+  <url type="vcs-browser">https://github.com/yelanxin/hiresTI</url>
+  <description>
+    <p>This is a community package of HiresTI, maintained independently and unaffiliated with HiresTI or TIDAL. A TIDAL subscription is required to stream.</p>
+    <p>HiresTI is a modern, high-fidelity TIDAL client for Linux built with GTK4 and libadwaita. It focuses on high-resolution, bit-perfect playback, with native USB DAC passthrough, a GStreamer audio pipeline and an optional DSP/equalizer stage.</p>
+    <p>Permissions: by default this package keeps a tight sandbox — network, display and audio (PipeWire/PulseAudio) — which is enough for normal playback. Bit-perfect, exclusive output to a USB DAC needs raw device access, which is not granted by default; enable it when you need it with "flatpak override":</p>
+    <ul>
+      <li>Bit-perfect USB DAC output: <code>flatpak override --user --device=all com.hiresti.player</code></li>
+    </ul>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Home</caption>
+      <image>https://raw.githubusercontent.com/yelanxin/hiresTI/6703fb5d3bab2716f3c1a1638ae3c1071f225a9a/screenshots/flathub/01-home.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Now playing</caption>
+      <image>https://raw.githubusercontent.com/yelanxin/hiresTI/6703fb5d3bab2716f3c1a1638ae3c1071f225a9a/screenshots/flathub/02-playing.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Settings</caption>
+      <image>https://raw.githubusercontent.com/yelanxin/hiresTI/6703fb5d3bab2716f3c1a1638ae3c1071f225a9a/screenshots/flathub/03-setting.png</image>
+    </screenshot>
+  </screenshots>
+  <launchable type="desktop-id">com.hiresti.player.desktop</launchable>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+  <keywords>
+    <keyword>tidal</keyword>
+    <keyword>music</keyword>
+    <keyword>hifi</keyword>
+    <keyword>flac</keyword>
+    <keyword>bit-perfect</keyword>
+  </keywords>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <content_rating type="oars-1.1" />
+  <provides>
+    <binary>hiresti</binary>
+  </provides>
+  <releases>
+    <release version="1.9.7" date="2026-06-22" />
+  </releases>
+</component>

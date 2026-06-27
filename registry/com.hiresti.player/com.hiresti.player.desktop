@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=HiresTI
+Comment=High-Res TIDAL player for Linux with bit-perfect support
+Exec=hiresti
+Icon=com.hiresti.player
+Terminal=false
+Categories=AudioVideo;Audio;Player;Music;
+StartupWMClass=HiresTI
+StartupNotify=true
+Keywords=tidal;music;hifi;flac;bit-perfect;player;
