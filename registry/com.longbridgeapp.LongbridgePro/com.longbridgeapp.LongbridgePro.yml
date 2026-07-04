@@ -1,0 +1,72 @@
+id: com.longbridgeapp.LongbridgePro
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: longbridgepro
+tags:
+  - proprietary
+finish-args:
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --socket=pulseaudio
+  - --socket=fallback-x11
+  - --socket=wayland
+modules:
+  - name: longbridgepro
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 longbridgepro-wrapper /app/bin/longbridgepro
+      - install -Dm644 com.longbridgeapp.LongbridgePro.png /app/share/icons/hicolor/512x512/apps/com.longbridgeapp.LongbridgePro.png
+      - install -Dm644 com.longbridgeapp.LongbridgePro.metainfo.xml /app/share/metainfo/com.longbridgeapp.LongbridgePro.metainfo.xml
+      - install -Dm644 fonts.conf /app/share/fonts/fonts.conf
+      - install -Dm644 com.longbridgeapp.LongbridgePro.desktop /app/share/applications/com.longbridgeapp.LongbridgePro.desktop
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: longbridgepro.deb
+        only-arches:
+          - x86_64
+        url: https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v0.17.2-linux-x86_64.deb
+        sha256: 22a5ea6a82c23ee74b7b16c5c36faeb2bc88778ff8920d0b74aae12bce5b4995
+        size: 52524750
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: longbridgepro-wrapper
+      - type: file
+        path: com.longbridgeapp.LongbridgePro.desktop
+      - type: file
+        path: com.longbridgeapp.LongbridgePro.metainfo.xml
+      - type: file
+        path: com.longbridgeapp.LongbridgePro.png
+      - type: file
+        path: fonts.conf
+  - name: noto-sans
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 NotoSans-Regular.ttf /app/share/fonts/NotoSans-Regular.ttf
+      - install -Dm644 NotoSans.LICENSE.txt /app/share/fonts/NotoSans.LICENSE.txt
+    sources:
+      - type: file
+        url: https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@noto-monthly-release-2026.05.01/fonts/NotoSans/hinted/ttf/NotoSans-Regular.ttf
+        sha256: 478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823
+      - type: file
+        url: https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@noto-monthly-release-2026.05.01/fonts/LICENSE
+        sha256: f2095b08bed08b23a6fe26112fcd679a2bee3f002eef077eb05d215ed1051bd8
+        dest-filename: NotoSans.LICENSE.txt
+  - name: noto-sans-cjk
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 NotoSansCJK-Regular.ttc /app/share/fonts/NotoSansCJK-Regular.ttc
+      - install -Dm644 NotoSansCJK.LICENSE.txt /app/share/fonts/NotoSansCJK.LICENSE.txt
+    sources:
+      - type: file
+        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTC/NotoSansCJK-Regular.ttc
+        sha256: b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a
+      - type: file
+        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/LICENSE
+        sha256: 6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2
+        dest-filename: NotoSansCJK.LICENSE.txt
