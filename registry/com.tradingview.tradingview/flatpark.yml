@@ -1,0 +1,22 @@
+id: com.tradingview.tradingview
+name: TradingView
+summary: Where the world charts, chats and trades markets
+website: https://www.tradingview.com
+source_url: https://github.com/flathub/com.tradingview.tradingview
+build:
+  manifest: com.tradingview.tradingview.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Finance
+  tags:
+    - Trading
+    - Markets
+    - Charts
+    - Investing
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: true
+  extra_data_first: true
+  dangerous_permissions: []
