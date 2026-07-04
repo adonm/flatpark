@@ -1,0 +1,22 @@
+id: com.longbridgeapp.LongbridgePro
+name: Longbridge Pro
+summary: Trading platform
+website: https://longbridge.com/desktop/
+source_url: https://github.com/flathub/com.longbridgeapp.LongbridgePro
+build:
+  manifest: com.longbridgeapp.LongbridgePro.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Finance
+  tags:
+    - Trading
+    - Markets
+    - Investing
+    - Stocks
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: true
+  extra_data_first: true
+  dangerous_permissions: []

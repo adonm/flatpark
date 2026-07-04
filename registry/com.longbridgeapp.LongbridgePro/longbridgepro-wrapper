@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+export FONTCONFIG_FILE=/app/share/fonts/fonts.conf
+exec /app/extra/longbridge "$@"

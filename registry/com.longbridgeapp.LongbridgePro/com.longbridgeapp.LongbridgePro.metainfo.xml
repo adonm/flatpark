@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+  <id>com.longbridgeapp.LongbridgePro</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary=https://support.longbridgeapp.com/topics/us-trade/user-agreement</project_license>
+  <name>Longbridge Pro</name>
+  <developer_name>LONG BRIDGE</developer_name>
+  <url type="homepage">https://longbridge.com/desktop/</url>
+  <summary>Trading platform</summary>
+  <description>
+    <p>A new professional securities trading desktop application, delivering an ultra-smooth investment experience for more efficient and convenient trading.</p>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://assets.lbctrl.com/uploads/f9971b35-3172-40a6-b124-65aea2e597a5/scr-20250502-mjkc.png</image>
+      <caption>Longbridge Pro</caption>
+    </screenshot>
+  </screenshots>
+  <launchable type="desktop-id">com.longbridgeapp.LongbridgePro.desktop</launchable>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-info">moderate</content_attribute>
+    <content_attribute id="money-purchasing">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="0.17.2" date="2026-06-23">
+      <description></description>
+    </release>
+    <release version="0.17.1" date="2026-06-12">
+      <description/>
+    </release>
+    <release version="0.17.0" date="2026-06-10">
+      <description/>
+    </release>
+    <release version="0.16.1" date="2026-05-28">
+      <description>
+        <p>Optimized:</p>
+        <ul>
+          <li>Fixed an issue where modifying a sell order incorrectly triggered a short-sell risk warning.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.16.0" date="2026-05-20">
+      <description>
+        <p>New Features:</p>
+        <ul>
+          <li>Chart: Added K-line "Interval Statistics", making it easier to monitor and review price action.</li>
+          <li>Chart: Added a right-click context menu to switch K-line type, adjust type, or open the trade window without going to Global Settings.</li>
+          <li>Chart: Added Y-axis zoom for adjusting the price axis independently.</li>
+          <li>Trade: Options trading now supports attached orders (stop-loss / take-profit).</li>
+          <li>Announcements: Added system announcement notifications.</li>
+          <li>Stock Reminder: Added push notification support, so alerts arrive in real time.</li>
+          <li>Quotes: Added activity tags (earnings, dividends, IPOs, important advisories, etc.).</li>
+          <li>Option Chain: Added financial report data, and bid/ask prices can be sent directly into the trade form.</li>
+          <li>Portfolio: Brand-new "Financing Status" page with more financing details and credit-limit adjustment.</li>
+          <li>Login: Added a password reset flow for "Forgot password", completed entirely inside the client.</li>
+        </ul>
+        <p>Improvements:</p>
+        <ul>
+          <li>Order push notifications now show the account name, and the success sound is muted for demo accounts.</li>
+          <li>Fixed state interference when quick-editing several orders in rapid succession.</li>
+          <li>Improved the trade password flow so actions like withdraw continue automatically after verification.</li>
+          <li>Fixed incorrect holding cost displayed after estimated fill on position close.</li>
+          <li>Login: Streamlined the login flow, improved the captcha network-error prompt, and added a retry mechanism.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.15.1" date="2026-04-24">
+      <description>
+        <p>New Features:</p>
+        <ul>
+          <li>Watchlist now supports switching the position of stock name and code.</li>
+        </ul>
+        <p>Optimizations:</p>
+        <ul>
+          <li>Fixed an issue where the order session for option stop-profit/stop-loss orders was incorrect.</li>
+          <li>Fixed an issue where the estimated quantity on the order screen was displayed inaccurately.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>
