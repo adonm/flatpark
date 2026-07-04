@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=TradingView
+Exec=tradingview %U
+Terminal=false
+Type=Application
+Icon=com.tradingview.tradingview
+StartupWMClass=TradingView
+Comment=Where the world charts, chats and trades markets
+MimeType=x-scheme-handler/tradingview;
+Categories=Finance;Office;

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+setup_ime_env() {
+  case "${XMODIFIERS:-}" in
+    *fcitx*)
+      [ -n "${QT_IM_MODULE:-}" ] || export QT_IM_MODULE=fcitx
+      [ -n "${GTK_IM_MODULE:-}" ] || export GTK_IM_MODULE=fcitx
+      ;;
+    *ibus*)
+      [ -n "${QT_IM_MODULE:-}" ] || export QT_IM_MODULE=ibus
+      [ -n "${GTK_IM_MODULE:-}" ] || export GTK_IM_MODULE=ibus
+      ;;
+  esac
+}
+
+unset ELECTRON_RUN_AS_NODE
+setup_ime_env
+exec zypak-wrapper /app/extra/tradingview/tradingview --ozone-platform-hint=auto "$@"
