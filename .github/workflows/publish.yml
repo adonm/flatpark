@@ -7,6 +7,16 @@ name: publish
 on:
   push:
     branches: [main]
+    # Only publish when something that feeds the repo or the site changed —
+    # docs/tests/README-only merges skip the whole run. Safe with the
+    # changed-apps BEFORE..SHA diff: a skipped push has no registry changes
+    # by definition, so nothing is ever missed.
+    paths:
+      - "registry/**"
+      - "site/**"
+      - "scripts/**"
+      - "config/**"
+      - ".github/workflows/publish.yml"
   workflow_dispatch:
     inputs:
       rebuild_all:
@@ -65,10 +75,32 @@ jobs:
             | GNUPGHOME="$GNUPGHOME_DIR" gpg --batch --import
           GNUPGHOME="$GNUPGHOME_DIR" gpg --list-secret-keys
 
-      - name: Pull current repo from R2 (incremental base)
+      # The repo is cached between runs so the R2 pull only reconciles a delta
+      # instead of re-downloading every object (that pull grows linearly with
+      # the catalog). github.sha keys are always fresh; restore-keys picks the
+      # most recent previous publish. A metadata-only pull (just refs +
+      # *.commit) is NOT an alternative: build-update-repo regenerates the
+      # merged appstream branch and hard-fails without the full object store.
+      - name: Restore repo cache
+        uses: actions/cache@v4
+        with:
+          path: out/repo
+          key: flatpak-repo-${{ github.sha }}
+          restore-keys: |
+            flatpak-repo-
+
+      - name: Reconcile repo with R2 (authoritative base)
         run: |
           mkdir -p "$REPO_DIR"
-          rclone copy "r2:$R2_BUCKET" "$REPO_DIR" --fast-list || true
+          # sync (not copy), so objects pruned from R2 by delist-prune are also
+          # dropped from the cached copy instead of being re-uploaded later.
+          # objects/ are content-addressed: same name => same bytes, size
+          # compare is enough. Everything else (refs, summary, config) is
+          # mutable and often same-size, so compare by checksum. No `|| true`:
+          # with a cache-restored base, a half-failed pull would mean building
+          # on a stale repo — better to fail the run and retry.
+          rclone sync "r2:$R2_BUCKET/objects" "$REPO_DIR/objects" --size-only --fast-list
+          rclone sync "r2:$R2_BUCKET" "$REPO_DIR" --exclude "objects/**" --checksum --fast-list
 
       - name: Decide which apps to build
         id: apps
@@ -78,7 +110,9 @@ jobs:
         run: |
           if [ "$REBUILD_ALL" = "true" ]; then
             ids="$(./scripts/scan-registry.sh --ids | tr '\n' ' ')"          # full rebuild
-          elif [ -d "$REPO_DIR/objects" ] && git rev-parse --verify -q "${BEFORE}^{commit}" >/dev/null 2>&1; then
+          # A published repo always has a signed summary; its absence after the
+          # R2 sync means a cold start (or wiped bucket) => full rebuild.
+          elif [ -f "$REPO_DIR/summary" ] && git rev-parse --verify -q "${BEFORE}^{commit}" >/dev/null 2>&1; then
             ids="$(./scripts/changed-apps.sh "$BEFORE" "$GITHUB_SHA" | tr '\n' ' ')"
           else
             ids="$(./scripts/scan-registry.sh --ids | tr '\n' ' ')"          # cold start / unknown base
@@ -99,6 +133,19 @@ jobs:
         run: |
           ./scripts/publish-repo.sh
           while IFS= read -r id; do ./scripts/gen-discovery.sh "$id"; done < <(./scripts/scan-registry.sh --ids)
+
+      # enrich.mjs skips any screenshot already on disk, so with this cache it
+      # only fetches shots for new/changed apps instead of re-downloading the
+      # whole catalog's screenshots from upstream every publish. Stale-shot
+      # escape hatch (upstream replaced an image at the same URL): delete the
+      # flatpark-screenshots-* caches in the Actions UI to force a re-pull.
+      - name: Restore screenshot cache
+        uses: actions/cache@v4
+        with:
+          path: site/public/screenshots
+          key: flatpark-screenshots-${{ hashFiles('registry/**') }}
+          restore-keys: |
+            flatpark-screenshots-
 
       - name: Build the site (full catalog)
         run: ./scripts/gen-site.sh $(./scripts/scan-registry.sh --ids | tr '\n' ' ')
