@@ -1,0 +1,22 @@
+id: org.tabby.Tabby
+name: Tabby
+summary: A terminal for a modern age
+website: https://tabby.sh
+source_url: https://github.com/Eugeny/tabby
+build:
+  manifest: org.tabby.Tabby.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Development
+  tags:
+    - Terminal
+    - SSH
+    - Serial
+    - Electron
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  extra_data_first: true
+  dangerous_permissions: []
