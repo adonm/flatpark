@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+# Tabby is an Electron app staged by apply_extra to /app/extra/tabby. Run it
+# through zypak-wrapper (from org.electronjs.Electron2.BaseApp): zypak redirects
+# Chromium's SUID sandbox onto the Flatpak sandbox, so the app keeps an internal
+# sandbox rather than the upstream .desktop's --no-sandbox. Flatpak redirects
+# $HOME, so ~/.config/tabby (profiles, saved connections) stays sandboxed.
+#
+# --ozone-platform-hint=auto lets Tabby render natively on Wayland when the
+# session is Wayland and fall back to X11 otherwise. Its bundled glasstron
+# vibrancy module always opens an X11 connection at startup, so the manifest
+# shares the X socket alongside Wayland (see the finish-args note) — glasstron
+# gets an XWayland display and doesn't crash, while the window stays Wayland.
+#
+# Tabby's shell provider reads /etc/shells to list login shells and, if it is
+# missing, falls back to Solus's /usr/share/defaults/etc/shells — neither exists
+# in the runtime, so the readFile rejects *uncaught*, breaking the Angular UI
+# (nothing responds to clicks). Flatpak gives each instance a writable /etc, so
+# seed a minimal /etc/shells listing the shells the runtime actually ships.
+if [ ! -e /etc/shells ]; then
+  for s in /bin/sh /bin/bash /usr/bin/bash /usr/bin/zsh /bin/zsh \
+           /usr/bin/fish /bin/fish /usr/bin/dash; do
+    [ -x "$s" ] && echo "$s"
+  done > /etc/shells 2>/dev/null || true
+fi
+
+# Turn the auto-update check off by default. On Linux the updater can't
+# self-update (Flatpak owns updates), but with enableAutomaticUpdates on — its
+# built-in default — Tabby still polls api.github.com for the latest release on
+# every startup and nags. Seed that setting to off, but ONLY on first run when no
+# user config exists yet, so an existing config is never touched and anyone who
+# wants update checks can re-enable them in Settings.
+cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/tabby"
+if [ ! -e "$cfg_dir/config.yaml" ]; then
+  mkdir -p "$cfg_dir" 2>/dev/null || true
+  printf 'enableAutomaticUpdates: false\n' > "$cfg_dir/config.yaml" 2>/dev/null || true
+fi
+
+# Defensively clear ELECTRON_RUN_AS_NODE: if it leaks in from the launching
+# environment (e.g. a terminal inside VS Code/Electron), the binary would start
+# as plain Node instead of the GUI app.
+unset ELECTRON_RUN_AS_NODE
+exec zypak-wrapper /app/extra/tabby/tabby --ozone-platform-hint=auto "$@"

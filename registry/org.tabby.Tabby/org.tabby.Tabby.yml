@@ -1,0 +1,79 @@
+id: org.tabby.Tabby
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+# Electron app: use the Electron base app, which ships zypak. zypak redirects
+# Chromium's SUID sandbox onto the Flatpak sandbox so the app keeps an internal
+# sandbox (the wrapper runs it via zypak-wrapper) instead of --no-sandbox. The
+# base is a prebuilt ref merged into the app at build time; the app stays
+# self-contained.
+base: org.electronjs.Electron2.BaseApp
+base-version: "25.08"
+command: tabby
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Electron (Chromium) terminal + SSH/serial/Telnet client. The prebuilt build
+  # bundles Chromium and its own ffmpeg/ANGLE/Vulkan; the GTK3, NSS, CUPS, ATK,
+  # ALSA, dbus, gbm and X11 stacks it links come from the runtime
+  # (org.freedesktop.Platform 25.08 ships them — verified against the binary's
+  # NEEDED set, 0 missing).
+  - --share=ipc
+  # SSH / Telnet / port forwarding — the client's core transport.
+  - --share=network
+  - --socket=wayland
+  # Full X11 (not fallback-x11): Tabby renders natively on Wayland, but its
+  # bundled glasstron vibrancy module unconditionally opens an X11 connection at
+  # startup and throws "display is undefined" if none exists. fallback-x11 is not
+  # shared while Wayland is active, so glasstron would find no X server and crash;
+  # sharing the X socket outright gives it an XWayland display and keeps Wayland
+  # rendering.
+  - --socket=x11
+  - --device=dri
+  # Desktop notifications (e.g. completed-task alerts).
+  - --talk-name=org.freedesktop.Notifications
+  # Encrypt the saved connection secrets / SSH vault (Electron safeStorage) via
+  # the Secret Service when a keyring is present.
+  - --talk-name=org.freedesktop.secrets
+  # Strip a leaked ELECTRON_RUN_AS_NODE from the sandbox env so the binary — and
+  # zypak's spawned child/zygote processes, which the wrapper's own `unset`
+  # can't reach — always start as the GUI app rather than as plain Node.
+  - --unset-env=ELECTRON_RUN_AS_NODE
+  # Deliberately NOT granted by default (the app works without them; users opt in
+  # per the metainfo notes via `flatpak override`):
+  #   --filesystem=~/.ssh:ro   -> reuse host SSH keys/config
+  #   --device=all             -> serial-port connections
+  #   --filesystem=home        -> browse the whole home tree in the SFTP panel
+  # File open/save otherwise goes through the portal; the app's own config lives
+  # under the per-app HOME (Flatpak redirects $HOME). The built-in local shell
+  # runs inside the sandbox, not the host.
+modules:
+  - name: tabby
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 tabby-wrapper /app/bin/tabby
+      - install -Dm644 org.tabby.Tabby.desktop /app/share/applications/org.tabby.Tabby.desktop
+      - install -Dm644 org.tabby.Tabby.metainfo.xml /app/share/metainfo/org.tabby.Tabby.metainfo.xml
+      - install -Dm644 org.tabby.Tabby.png /app/share/icons/hicolor/512x512/apps/org.tabby.Tabby.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: tabby.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/Eugeny/tabby/releases/download/v1.0.234/tabby-1.0.234-linux-x64.deb
+        sha256: 1872080af06c962347c7a5411de682478e087df33eae67c2b57a517461702fd4
+        size: 122003780
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: tabby-wrapper
+      - type: file
+        path: org.tabby.Tabby.desktop
+      - type: file
+        path: org.tabby.Tabby.metainfo.xml
+      - type: file
+        path: org.tabby.Tabby.png

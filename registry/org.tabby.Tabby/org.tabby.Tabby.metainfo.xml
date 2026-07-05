@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.tabby.Tabby</id>
+  <name>Tabby</name>
+  <summary>A terminal for a modern age</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="org.tabby">
+    <name>Eugeny and contributors</name>
+  </developer>
+  <url type="homepage">https://tabby.sh</url>
+  <url type="bugtracker">https://github.com/Eugeny/tabby/issues</url>
+  <url type="vcs-browser">https://github.com/Eugeny/tabby</url>
+  <description>
+    <p>This is a community package of Tabby, maintained independently and unaffiliated with the Tabby project. It repackages the official upstream Linux build unmodified.</p>
+    <p>Tabby (formerly Terminus) is a highly configurable, cross-platform terminal emulator and SSH, serial and Telnet client. It combines a local shell with a full connection manager in one app.</p>
+    <ul>
+      <li>Tabs and split panes with a searchable, per-tab scrollback.</li>
+      <li>Integrated SSH client with a saved-connection manager, jump hosts, X11 and port forwarding, and a built-in SFTP panel.</li>
+      <li>Serial and Telnet connections, plus a local terminal.</li>
+      <li>Themes, fonts and ligatures, per-profile colours, and a plugin system.</li>
+      <li>Encrypted vault for connection secrets.</li>
+    </ul>
+    <p>Permissions: by default this package keeps a tight sandbox — network and display only — which is enough for SSH/Telnet sessions, port forwarding and the local sandboxed shell. The app's own config and vault live inside the sandbox. A few optional capabilities are not granted by default; enable the ones you need with "flatpak override":</p>
+    <ul>
+      <li>Reuse your existing host SSH keys/config: <code>flatpak override --user --filesystem=~/.ssh:ro org.tabby.Tabby</code></li>
+      <li>Serial-port connections: <code>flatpak override --user --device=all org.tabby.Tabby</code></li>
+      <li>Browse your whole home directory in the SFTP panel: <code>flatpak override --user --filesystem=home org.tabby.Tabby</code></li>
+      <li>Run your host shell (e.g. zsh or fish, with your real environment) in the local terminal instead of the sandbox's bash: grant host access with <code>flatpak override --user --talk-name=org.freedesktop.Flatpak org.tabby.Tabby</code>, then add a profile whose command is <code>flatpak-spawn --host /usr/bin/zsh</code> (or your shell).</li>
+    </ul>
+    <p>Software updates are handled by Flatpak; the app's own update checker is off by default.</p>
+  </description>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Development</category>
+    <category>System</category>
+  </categories>
+  <keywords>
+    <keyword>terminal</keyword>
+    <keyword>shell</keyword>
+    <keyword>ssh</keyword>
+    <keyword>serial</keyword>
+    <keyword>telnet</keyword>
+  </keywords>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <provides>
+    <binary>tabby</binary>
+    <mediatype>x-scheme-handler/tabby</mediatype>
+  </provides>
+  <launchable type="desktop-id">org.tabby.Tabby.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://user-images.githubusercontent.com/161476/200423885-7aba2202-fea7-4409-95b9-3a062ce902c7.png</image>
+      <caption>Tabby with split terminal panes</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.0.234" date="2026-05-17">
+      <url>https://github.com/Eugeny/tabby/releases/tag/v1.0.234</url>
+    </release>
+  </releases>
+</component>

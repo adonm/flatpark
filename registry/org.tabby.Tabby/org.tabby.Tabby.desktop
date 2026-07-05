@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Tabby
+Comment=A terminal for a modern age
+Exec=tabby %U
+Icon=org.tabby.Tabby
+Terminal=false
+StartupNotify=true
+StartupWMClass=tabby
+Categories=System;TerminalEmulator;Utility;
+MimeType=x-scheme-handler/tabby;
+Keywords=terminal;shell;ssh;serial;telnet;console;
