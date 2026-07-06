@@ -20,7 +20,10 @@
       <li>Connect to Docker, Kubernetes, SSH and cloud provider backends.</li>
       <li>Keep workspace definitions in source control.</li>
     </ul>
-    <p>Permissions: DevPod needs broad host integration to do its core job. This package grants home-directory access, SSH and GPG agent sockets, and Flatpak host spawning so the DevPod CLI can run against the user's real Docker, Kubernetes, SSH and IDE environment. This follows the upstream Flathub package's model, but with a newer GNOME runtime and a newer upstream prerelease.</p>
+    <p>Important — one-time setup required: To create real workspaces, DevPod runs its CLI on the host (through flatpak-spawn) so it can drive your actual Docker, Kubernetes, SSH and IDE tooling. That needs a sandbox-escape permission which this package does NOT grant by default, so the app is safe out of the box but cannot open host workspaces until you opt in. Grant it once with:</p>
+    <p>flatpak override --user --talk-name=org.freedesktop.Flatpak sh.loft.devpod</p>
+    <p>Without this override, the desktop UI launches but workspace operations that need the host (for example "up") will fail. This is a deliberate deviation from the upstream Flathub package, which ships the escape permission enabled.</p>
+    <p>Other permissions granted by default: home-directory access and SSH/GPG agent sockets, so the host CLI can reach your projects and credentials.</p>
   </description>
   <content_rating type="oars-1.1"/>
   <categories>

@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# Host-spawn shim for the DevPod CLI. It runs the upstream CLI on the host via
+# flatpak-spawn --host, which requires the --talk-name=org.freedesktop.Flatpak
+# permission. That permission is a sandbox escape and is intentionally NOT
+# granted by the manifest, so the user must opt in once:
+#
+#   flatpak override --user --talk-name=org.freedesktop.Flatpak sh.loft.devpod
+#
+# Until then, flatpak-spawn --host below fails and host workspace operations
+# (e.g. `devpod up`) do not work.
+
 # The desktop can invoke the wrapper with a very small PATH. The wrapper itself
 # needs basic runtime tools before it can spawn the host CLI.
 export PATH="/app/bin:/usr/bin:/bin:${PATH:-}"

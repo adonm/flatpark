@@ -22,4 +22,8 @@ policy:
   extra_data_first: true
   dangerous_permissions:
     - --filesystem=home
-    - --talk-name=org.freedesktop.Flatpak
+  # DevPod's host-spawn model needs --talk-name=org.freedesktop.Flatpak to reach
+  # the host CLI via flatpak-spawn. That is a sandbox-escape permission and is
+  # intentionally NOT granted by the manifest; the user opts in per the metainfo
+  # description (flatpak override --user --talk-name=org.freedesktop.Flatpak
+  # sh.loft.devpod). Noted here so the requirement stays greppable.

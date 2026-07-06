@@ -9,9 +9,11 @@ build-options:
 finish-args:
   # Tauri/WebKitGTK desktop client for creating development environments on the
   # user's actual Docker, Kubernetes, SSH and IDE setup. DevPod's model depends
-  # on invoking its CLI on the host, so this intentionally mirrors the upstream
-  # Flathub package's host-spawn design instead of presenting a sandbox-only
-  # shell that cannot manage real workspaces.
+  # on invoking its CLI on the host via flatpak-spawn, which requires
+  # --talk-name=org.freedesktop.Flatpak. That is a sandbox-escape permission, so
+  # this package deliberately ships WITHOUT it: the app is safe by default and
+  # the user must opt in before host workspaces work. See the metainfo
+  # description and the devpod-cli-wrapper for the exact override command.
   - --share=ipc
   - --share=network
   - --socket=wayland
@@ -21,7 +23,6 @@ finish-args:
   - --socket=gpg-agent
   - --filesystem=home
   - --filesystem=xdg-run/keyring
-  - --talk-name=org.freedesktop.Flatpak
   - --talk-name=org.kde.StatusNotifierWatcher
   - --filesystem=xdg-run/tray-icon:create
 modules:
