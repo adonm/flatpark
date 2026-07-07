@@ -8,11 +8,11 @@ build:
   branch: stable
   mode: extra-data
 catalog:
-  category: Music
+  category: AudioVideo
   tags:
-    - Music
     - Audio
     - Player
+    - Music
     - GTK
 update:
   command: ./resolve-update.sh
