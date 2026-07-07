@@ -19,6 +19,11 @@
       <li>Full local library access: <code>flatpak override --user --filesystem=home io.sourceforge.deadbeef</code></li>
       <li>GVfs-mounted locations: <code>flatpak override --user --filesystem=xdg-run/gvfs io.sourceforge.deadbeef</code></li>
     </ul>
+    <p>User-installed plugins are not granted by default. DeaDBeeF looks for user plugins in <code>~/.local/lib64/deadbeef</code> and <code>~/.local/lib/deadbeef</code>; allow those directories only if you install third-party plugins:</p>
+    <ul>
+      <li>Enable user plugin directories: <code>flatpak override --user --filesystem=~/.local/lib64/deadbeef:create --filesystem=~/.local/lib/deadbeef:create io.sourceforge.deadbeef</code></li>
+      <li>Install a 64-bit plugin: <code>mkdir -p ~/.local/lib64/deadbeef &amp;&amp; cp ~/Downloads/plugins/example_GTK3.so ~/.local/lib64/deadbeef/</code></li>
+    </ul>
   </description>
   <screenshots>
     <screenshot type="default">
