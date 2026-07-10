@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>page.tine.Tine</id>
+  <name>Tine</name>
+  <summary>Fast Logseq-compatible outliner</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <developer id="page.tine">
+    <name>Martin Koutecký</name>
+  </developer>
+  <url type="homepage">https://tine.page</url>
+  <url type="bugtracker">https://github.com/martinkoutecky/tine/issues</url>
+  <url type="vcs-browser">https://github.com/martinkoutecky/tine</url>
+  <description>
+    <p>This is a community package of Tine, maintained independently and unaffiliated with the Tine project. It repackages the official upstream Linux build unmodified.</p>
+    <p>Tine is a fast, local-first outliner that reads and writes a real Logseq Markdown (and Org) graph on disk. It aims to feel like — and round-trip with — Logseq, so you can swap between the two on the same files.</p>
+    <ul>
+      <li>An outliner with tasks, priorities and journals.</li>
+      <li>Page and block references, with backlinks.</li>
+      <li>Queries with a visual builder.</li>
+      <li>PDF and media viewing, with image and audio support.</li>
+      <li>HTML export of your graph.</li>
+      <li>Reads and writes the same Markdown/Org files as Logseq.</li>
+    </ul>
+    <p>Permissions: this package keeps a tight sandbox by default — display, GPU and audio only. Your graph is opened through the desktop portal's file picker, so Tine reaches exactly the folder you choose and nothing else; no filesystem access is pre-granted, and no network access is given, since Tine is local-first and updates arrive through Flatpak. Tine's own settings live inside the sandbox under ~/.var/app/page.tine.Tine. To let Tine open a graph directly without the picker — for example a Logseq graph you sync elsewhere — grant it with <code>flatpak override --user --filesystem=~/path/to/graph page.tine.Tine</code>.</p>
+  </description>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>outliner</keyword>
+    <keyword>logseq</keyword>
+    <keyword>markdown</keyword>
+    <keyword>notes</keyword>
+    <keyword>journal</keyword>
+  </keywords>
+  <recommends>
+    <display_length compare="ge">800</display_length>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <provides>
+    <binary>tine</binary>
+  </provides>
+  <launchable type="desktop-id">page.tine.Tine.desktop</launchable>
+  <branding>
+    <color type="primary" scheme_preference="light">#c8f0d2</color>
+    <color type="primary" scheme_preference="dark">#1f3d2b</color>
+  </branding>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://tine.page/img/hero.png</image>
+      <caption>Journals view</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://tine.page/img/web-sheets.png</image>
+      <caption>Sheets — grid, field table, and board over plain bullets</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://tine.page/img/web-split.png</image>
+      <caption>Split view with pane-select highlighting</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://tine.page/img/query.png</image>
+      <caption>Query builder</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://tine.page/img/dark.png</image>
+      <caption>Dark theme</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.5.1" date="2026-07-10">
+      <url>https://github.com/martinkoutecky/tine/releases/tag/v0.5.1</url>
+    </release>
+  </releases>
+</component>

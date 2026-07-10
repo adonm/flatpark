@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+# tine is a single Tauri v2 (Rust + WebKitGTK) binary staged by apply_extra to
+# /app/extra/tine/bin. The SolidJS frontend is embedded in the executable, so
+# there is no resource dir to resolve. It links only against libraries in
+# org.gnome.Platform (webkit2gtk-4.1, gtk-3, libsoup-3, cairo, dbus). Flatpak
+# redirects the XDG base dirs into the per-app data dir, so Tine's own settings
+# stay inside the sandbox; the Markdown graph itself lives wherever the user
+# points the file picker, which is reached through the desktop portal.
+
+# WebKitGTK's DMABUF renderer paints a blank window under many drivers inside
+# the Flatpak sandbox; the compositing path is the reliable default here.
+export WEBKIT_DISABLE_DMABUF_RENDERER=1
+
+exec /app/extra/tine/bin/tine "$@"
