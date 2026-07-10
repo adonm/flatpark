@@ -1,0 +1,55 @@
+id: page.tine.Tine
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: tine
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Tauri v2 / WebKitGTK outliner. dri for WebKit compositing; pulseaudio because
+  # Tine plays audio attachments from the graph.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --socket=pulseaudio
+  # No --filesystem: the Markdown graph is opened through GtkFileChooserNative,
+  # which Flatpak routes to the desktop portal, and the document portal keeps
+  # that grant across restarts. Tine's own settings live in the XDG base dirs,
+  # which Flatpak redirects into the sandbox. Users who want Tine to reach a
+  # graph without going through the picker each time can opt in with a
+  # `flatpak override` — documented in the metainfo.
+  #
+  # No --share=network either: Tine is local-first, and updates are delivered by
+  # Flatpak rather than the bundled Tauri updater. Opening a link from a note
+  # goes through the OpenURI portal, which needs no network permission here.
+modules:
+  - name: tine
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 tine-wrapper /app/bin/tine
+      - install -Dm644 page.tine.Tine.desktop /app/share/applications/page.tine.Tine.desktop
+      - install -Dm644 page.tine.Tine.metainfo.xml /app/share/metainfo/page.tine.Tine.metainfo.xml
+      - install -Dm644 page.tine.Tine.png /app/share/icons/hicolor/256x256/apps/page.tine.Tine.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: tine.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/martinkoutecky/tine/releases/download/v0.5.1/Tine_0.5.1_amd64.deb
+        sha256: 5e3c784247d4d14c875d315908e3442127c091e3585125aa956a27c2e91f6423
+        size: 14194336
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: tine-wrapper
+      - type: file
+        path: page.tine.Tine.desktop
+      - type: file
+        path: page.tine.Tine.metainfo.xml
+      - type: file
+        path: page.tine.Tine.png

@@ -1,0 +1,24 @@
+id: page.tine.Tine
+name: Tine
+summary: Fast, local-first outliner that reads and writes a real Logseq Markdown graph
+website: https://tine.page
+source_url: https://github.com/martinkoutecky/tine
+build:
+  manifest: page.tine.Tine.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Office
+  featured: false
+  tags:
+    - Outliner
+    - Logseq
+    - Markdown
+    - Notes
+    - Journal
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  extra_data_first: true
+  dangerous_permissions: []
