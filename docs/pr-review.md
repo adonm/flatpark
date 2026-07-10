@@ -60,10 +60,17 @@ needed to decide → escalate to a human.
 ### Phase 1 — Scope & classification
 Classify: new app (`registry/<id>/`) / existing-app change / infrastructure.
 **High-scrutiny surface (STOP if a non-owner touches it):** `.github/`,
-`scripts/`, signing config, `registry/*/resolve-update.sh`, and a `flatpark.yml`
-`update.command` — these are CI-executed on a repo-write token
-(`update-check.yml` runs `contents: write` + `pull-requests: write`;
-`check-updates.sh` `eval`s `update.command`). Identify the changed app id(s).
+`scripts/`, `config/`, signing config, and — for an app that **already exists on
+the base commit** — its `resolve-update.sh` or `update.command`. These are
+CI-executed on a repo-write token (`update-check.yml` runs `contents: write` +
+`pull-requests: write`; `check-updates.sh` `eval`s `update.command`).
+
+A resolver added inside a **brand-new** `registry/<id>/` directory is the normal
+submission flow, not a high-scrutiny event: every new app must bring one, its
+blast radius is that app's own pin, and it only executes post-merge on `main`.
+It still gets read as code in Phase 4.2 — the distinction is that a contributor
+may bring their own resolver but never edit one the repo already trusts.
+Identify the changed app id(s).
 
 ### Phase 2 — Submitter & provenance
 Account age, history, social graph, other repos, prior contributions. Source-repo
@@ -160,7 +167,8 @@ Reviewer recommends only — a human merges.
 - `update.command` that is not a simple relative script path.
 - IOC found (traversal / setuid / persistence / miner / reverse-shell / embedded
   payload / RPATH injection).
-- Infra/workflow/resolver tampering from an external contributor.
+- Infra/workflow tampering from an external contributor, or an edit to an
+  existing app's resolver (a resolver in a brand-new app dir is not tampering).
 - Throwaway account **+** Tier-3 binary (the PR #13 combination).
 
 **NEEDS-HUMAN:** from-source binaries not byte-verifiable · novel permission
@@ -179,7 +187,7 @@ source-verifiable · 2 = official prebuilt · ★ = all.
 |---|---|---|---|---|---|
 | 0 | Safety | Static-only; nothing executed; artifacts handled in an isolated dir | ★ | | |
 | 1.1 | Scope | Classified: new app / app change / infra | ★ | | |
-| 1.2 | Scope | Touches high-scrutiny surface (`.github/`·`scripts/`·signing·`resolve-update.sh`·`update.command`)? non-owner → STOP | ★ | | |
+| 1.2 | Scope | Touches high-scrutiny surface (`.github/`·`scripts/`·`config/`·signing, or an **existing** app's `resolve-update.sh`/`update.command`)? non-owner → STOP. A resolver in a brand-new app dir is routine | ★ | | |
 | 2.1 | Provenance | Submitter account age / history / graph / other repos | ★ | | |
 | 2.2 | Provenance | Source repo age, corroboration | ★ | | |
 | 2.3 | Provenance | Commit identity sane (no malformed email) | ★ | | |
