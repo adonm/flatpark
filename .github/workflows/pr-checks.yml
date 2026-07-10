@@ -57,14 +57,27 @@ jobs:
             ./scripts/check-links.sh $ids
           fi
 
-  # Tripwire: a PR that touches CI-executed automation (.github, scripts,
-  # registry resolvers, a descriptor's update.command) is gated. These surfaces
-  # run on a repo-write token in update-check.yml — a malicious resolver is a
-  # real automation surface even though it never reaches the signing key. The
-  # threat is an *external* contributor sneaking such a change in, so the gate
-  # hard-fails only for untrusted authors; for a trusted author (OWNER / MEMBER /
-  # COLLABORATOR) it just surfaces a notice and passes, so the maintainer's own
-  # infra PRs aren't blocked. No secrets; read-only token.
+  # Tripwire: a PR that touches CI-executed automation is gated. Two surfaces
+  # qualify, and the difference matters:
+  #
+  #   (a) Repo-wide automation — .github, scripts, config. Runs on a repo-write
+  #       token (update-check.yml) and governs every app. A new-app submission
+  #       never needs to touch it.
+  #   (b) A single app's resolver / update.command. Also CI-executed, but its
+  #       blast radius is that one app's pin, it only runs post-merge on main,
+  #       and *every* new-app PR must add one. Gating (b) unconditionally fires
+  #       on 100% of the normal submission flow, which trains the maintainer to
+  #       click through the very alarm that (a) depends on.
+  #
+  # So the discriminator is not "did a resolver change" but "whose". An external
+  # contributor may bring a resolver inside a brand-new registry/<id>/ dir; they
+  # may not edit one the repo already trusts. update.command shape is enforced
+  # separately and unconditionally by scripts/audit-descriptor.mjs, and every
+  # resolver — new or not — is still read as code per docs/pr-review.md Phase 4.2.
+  #
+  # For a trusted author (OWNER / MEMBER / COLLABORATOR) a hit is a notice, not a
+  # failure, so the maintainer's own infra PRs aren't blocked. No secrets;
+  # read-only token.
   guard-infra:
     runs-on: ubuntu-latest
     permissions:
@@ -73,31 +86,42 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Gate infra / resolver / update.command changes
+      - name: Gate repo automation and existing-app resolver changes
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           assoc="${{ github.event.pull_request.author_association }}"
+
+          # True when nothing existed under registry/<id>/ at the base commit.
+          new_app_dir() { ! git cat-file -e "$base:registry/$1" 2>/dev/null; }
+
           flagged=""
           while IFS= read -r f; do
             [ -n "$f" ] || continue
+            id="${f#registry/}"; id="${id%%/*}"
             case "$f" in
-              .github/*|scripts/*|registry/*/resolve-update.sh) flagged="${flagged}  - ${f}"$'\n';;
+              .github/*|scripts/*|config/*)
+                flagged="${flagged}  - ${f} (repo-wide automation)"$'\n' ;;
+              registry/*/resolve-update.sh)
+                new_app_dir "$id" ||
+                  flagged="${flagged}  - ${f} (resolver of an existing app)"$'\n' ;;
+              registry/*/flatpark.yml)
+                if ! new_app_dir "$id" &&
+                   git diff "$base" HEAD -- "$f" | grep -qE '^[+-][[:space:]]*command:'; then
+                  flagged="${flagged}  - ${f} (update.command of an existing app)"$'\n'
+                fi ;;
             esac
           done < <(git diff --name-only "$base" HEAD)
-          # An added/removed `command:` line in any descriptor = an update.command change.
-          if git diff "$base" HEAD -- 'registry/*/flatpark.yml' | grep -qE '^[+-][[:space:]]*command:'; then
-            flagged="${flagged}  - registry/*/flatpark.yml (update.command)"$'\n'
-          fi
+
           if [ -z "$flagged" ]; then
-            echo "No infra/resolver/update.command changes."
+            echo "No repo-automation or existing-app resolver changes."
             exit 0
           fi
           printf 'Flagged changes:\n%s\n' "$flagged"
           case "$assoc" in
             OWNER|MEMBER|COLLABORATOR)
-              echo "::notice::Infra/automation change by a trusted author ($assoc) — surfaced for review, not blocking." ;;
+              echo "::notice::Automation change by a trusted author ($assoc) — surfaced for review, not blocking." ;;
             *)
-              echo "::error::Infra/automation change by an external author ($assoc). A maintainer must review per docs/pr-review.md (Phase 1 high-scrutiny) before merge."
+              echo "::error::External author ($assoc) modified repo-wide automation or an existing app's resolver. A maintainer must review per docs/pr-review.md (Phase 1 high-scrutiny) before merge. Adding a resolver inside a new registry/<id>/ directory does not trip this gate."
               exit 1 ;;
           esac
 
