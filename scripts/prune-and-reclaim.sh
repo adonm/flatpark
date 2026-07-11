@@ -14,7 +14,10 @@ load_config "$ROOT"
 need ostree
 repo="${1:-$REPO_DIR}"
 [ -d "$repo/objects" ] || die "not an ostree repo: $repo"
-mkdir -p "$OUT_DIR"
+# Object stores do not preserve empty directories. A bare OSTree repository
+# normally has refs/remotes/, but R2 omits it when empty; `ostree refs` then
+# fails before it can list the locally published refs.
+mkdir -p "$repo/refs/remotes" "$OUT_DIR"
 reclaim="${RECLAIM_LIST:-$OUT_DIR/reclaim-objects.txt}"
 
 # 1. Delist: drop app/<id> refs whose registry entry is gone.
