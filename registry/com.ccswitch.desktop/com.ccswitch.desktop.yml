@@ -18,19 +18,16 @@ finish-args:
   # System tray (Tauri tray-icon).
   - --talk-name=org.kde.StatusNotifierWatcher
   - --filesystem=xdg-run/tray-icon:create
-  # Core function: read/write the live CLI configs. Scoped to exactly the files
-  # and dirs cc-switch manages — NOT --filesystem=home — so the rest of $HOME
-  # stays private. :create lets a missing dir/file be created on first use
-  # (~/.claude.json already exists, written by Claude Code, so no :create there).
-  # A custom config-dir override outside these paths would need an extra
-  # `flatpak override --filesystem=...`.
+  # Core function: read/write the live CLI configs. The only default grant is
+  # cc-switch's own data dir; every managed tool (Claude, Codex, Gemini, ...)
+  # is granted by the user with `flatpak override` (commands in the app
+  # description). Never expose a bare config file as a single-file
+  # --filesystem grant: it becomes a bind mount, and cc-switch updates configs
+  # by write-temp-then-rename, which cannot replace a mount point (rename(2)
+  # EBUSY). Tools with a directory get the directory; tools with a bare config
+  # file get the file's parent directory — for ~/.claude.json that parent is
+  # $HOME itself, hence Claude Code users grant --filesystem=home.
   - --filesystem=~/.cc-switch:create
-  - --filesystem=~/.claude:create
-  - --filesystem=~/.claude.json
-  - --filesystem=~/.codex:create
-  - --filesystem=~/.gemini:create
-  - --filesystem=~/.config/opencode:create
-  - --filesystem=~/.openclaw:create
 modules:
   # The Tauri tray-icon dlopen-s libayatana-appindicator at startup and PANICS if
   # it is missing — and the GNOME runtime does not ship it, so the app cannot
