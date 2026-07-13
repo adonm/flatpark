@@ -18,11 +18,23 @@ finish-args:
   # System tray (Tauri tray-icon).
   - --talk-name=org.kde.StatusNotifierWatcher
   - --filesystem=xdg-run/tray-icon:create
+  # JDBC-agent databases (Oracle, Dameng, KingbaseES and a dozen others) download
+  # a JRE and driver jars into the hardcoded ~/.dbx/agents; without persistence
+  # they are re-downloaded on every launch. Real-home :create (not --persist) so
+  # the dir is user-accessible and survives a fresh first run.
+  - --filesystem=~/.dbx:create
+  # DuckDB extensions (quack/ducklake) and DuckDB persistent secrets live in
+  # ~/.duckdb.
+  - --filesystem=~/.duckdb:create
   # No --filesystem=home: dbx's own settings live in its private per-app dir, and
   # local file databases (SQLite/DuckDB) and .sql scripts are opened through the
   # file-chooser portal. To keep a local-file connection working across restarts
   # (the portal grant is per-pick), grant the path with
   # `flatpak override --user --filesystem=/path/to/db com.dbxio.dbx`.
+  # No ~/.ssh by default: the SSH-tunnel feature reads ~/.ssh/config and private
+  # keys (it does not write known_hosts), but keys are too sensitive to expose
+  # unasked. Users who need tunnels can grant read-only access with
+  # `flatpak override --user --filesystem=~/.ssh:ro com.dbxio.dbx`.
 modules:
   # dbx's Tauri tray-icon dlopen-s libayatana-appindicator3.so.1 at startup (via
   # libappindicator-sys) and the GNOME runtime does not ship it.
