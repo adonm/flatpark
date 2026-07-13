@@ -19,7 +19,8 @@
       <li>Query editor with executable-statement markers, result-source tracking and export</li>
       <li>Data grid with filtering, navigation and in-cell editing; ER diagrams and table-structure editing</li>
     </ul>
-    <p>This package talks to databases over the network. Its own settings live in its private per-app directory. Local file databases (SQLite/DuckDB) and .sql scripts are opened through the file-chooser portal; to keep a local-file connection working across restarts, grant the path with "flatpak override --user --filesystem=/path/to/db com.dbxio.dbx".</p>
+    <p>This package talks to databases over the network. Its own settings live in its private per-app directory; ~/.dbx (JDBC driver agents) and ~/.duckdb (DuckDB extensions and secrets) are shared with the host. Local file databases (SQLite/DuckDB) and .sql scripts are opened through the file-chooser portal; to keep a local-file connection working across restarts, grant the path with "flatpak override --user --filesystem=/path/to/db com.dbxio.dbx".</p>
+    <p>SSH access is not granted by default. The SSH-tunnel feature reads ~/.ssh/config and private keys; if you use it, grant read-only access with "flatpak override --user --filesystem=~/.ssh:ro com.dbxio.dbx".</p>
   </description>
   <launchable type="desktop-id">com.dbxio.dbx.desktop</launchable>
   <categories>
