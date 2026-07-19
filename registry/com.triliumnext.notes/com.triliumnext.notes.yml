@@ -57,9 +57,9 @@ modules:
         filename: trilium.deb
         only-arches:
           - x86_64
-        url: https://github.com/TriliumNext/Trilium/releases/download/v0.103.0/TriliumNotes-v0.103.0-linux-x64.deb
-        sha256: 15cd7a2c4ea01d0198d32e7f128069909a7fec0abda33a1436872bd22b7cf185
-        size: 143489658
+        url: https://github.com/TriliumNext/Trilium/releases/download/v0.104.0/TriliumNotes-v0.104.0-linux-x64.deb
+        sha256: 452c4e5ceee4b77fce31b19474134faa8844ce4ce7f4583d7e8f32e7db03329f
+        size: 151149266
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
