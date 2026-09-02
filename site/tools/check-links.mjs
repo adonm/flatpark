@@ -87,10 +87,13 @@ async function request(method, url) {
 
 async function probe(entry) {
   try {
-    // Prefer HEAD; many servers reject/ignore it (or block hotlinking), so on
-    // any HEAD failure or 403/405/501 fall back to GET before declaring it dead.
+    // Prefer HEAD, but it is only a hint: plenty of servers and CDNs reject or
+    // mishandle it (block hotlinking, 405/501, or answer a blanket 404/400 to
+    // every HEAD while serving the same URL fine over GET — CodeBuddy's site
+    // does exactly this). So on a missing HEAD or any non-2xx HEAD, confirm with
+    // a GET before believing it. A genuinely dead URL still fails the GET.
     let res = await request('HEAD', entry.url).catch(() => null);
-    if (!res || [403, 405, 501].includes(res.status)) {
+    if (!res || !res.ok) {
       res = await request('GET', entry.url);
     }
     // A 403 that survives the GET fallback means the host answered but refuses

@@ -4,7 +4,7 @@
   <name>CodeBuddy CN</name>
   <summary>Tencent's AI-native code editor (China build)</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary=https://www.codebuddy.ai/docs/legal/terms-of-service</project_license>
+  <project_license>LicenseRef-proprietary=https://www.codebuddy.cn/ide/</project_license>
   <developer id="com.tencent">
     <name>Tencent</name>
   </developer>
@@ -72,7 +72,7 @@
   </screenshots>
   <releases>
     <release version="4.11.3.37298507-2345dde1-cn" date="2026-08-29">
-      <url>https://www.codebuddy.ai/docs/ide/Change-Log</url>
+      <url>https://www.codebuddy.ai/docs/ide/release-notes/release-notes</url>
     </release>
   </releases>
 </component>
