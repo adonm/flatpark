@@ -1,0 +1,104 @@
+id: com.tencent.codebuddycn
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+# Electron app: use the Electron base app, which ships zypak. zypak redirects
+# Chromium's SUID sandbox onto the Flatpak sandbox, so CodeBuddy keeps
+# Chromium's internal sandbox instead of launching with --no-sandbox. The base
+# is a prebuilt ref merged in at build time; the official upstream application
+# tree is fetched as extra-data and left unmodified.
+base: org.electronjs.Electron2.BaseApp
+base-version: "25.08"
+command: codebuddy
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # VS Code-derived editor (Code-OSS 1.106, Electron 37). The upstream .deb
+  # bundles Chromium, its ffmpeg and swiftshader libraries, the Node-based
+  # extension host with its node-pty / sqlite3 / @parcel/watcher native modules,
+  # and every bundled extension; the GTK3, NSS, ATK, CUPS, DRM/GBM, ALSA and X11
+  # stacks come from org.freedesktop.Platform 25.08.
+  - --share=ipc
+  # Model requests, sign-in (a Tencent Cloud account), the open-vsx extension
+  # gallery and update checks.
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Chromium compositing for the editor, diff views and the agent panel.
+  - --device=dri
+  # Editor sounds: the terminal bell and the accessibility signals that announce
+  # a finished agent run.
+  - --socket=pulseaudio
+  # Desktop notifications from the editor and its extensions.
+  - --talk-name=org.freedesktop.Notifications
+  # Sign-in tokens and extension credentials go to the system keyring when one
+  # is available; without this every launch starts signed out.
+  - --talk-name=org.freedesktop.secrets
+  # CodeBuddy keeps its extensions, CLI state and agent data in a hardcoded
+  # ~/.codebuddycn (product.json dataFolderName); user settings go to the
+  # XDG-redirected ~/.config/buddycn. Granted user-accessible rather than
+  # --persist so the editor and the bundled agent CLI — which the command
+  # bridge below runs on the host — read and write the same directory; :create
+  # makes it on a fresh first run.
+  - --filesystem=~/.codebuddycn:create
+  # Host command bridge: the wrapper generates a runtime PATH directory whose
+  # entries forward through flatpak-spawn --host, so the developer tools the
+  # integrated terminal and the agent shell out to — git, language toolchains,
+  # build and test runners — resolve to the user's own host installs, which is
+  # where their projects and credentials already are. The runtime ships bash
+  # and coreutils but no developer toolchain, and FlatPark neither bundles nor
+  # authenticates those CLIs. Declared in flatpark.yml
+  # policy.dangerous_permissions and requires human review.
+  - --talk-name=org.freedesktop.Flatpak
+  # Strip a leaked ELECTRON_RUN_AS_NODE from the sandbox env so the editor — and
+  # zypak's spawned child/zygote processes, which the wrapper's own `unset`
+  # cannot reach — never start as plain Node.
+  - --unset-env=ELECTRON_RUN_AS_NODE
+  # Deliberately NOT granted by default (documented as opt-in in the metainfo):
+  #   --filesystem=home        -> open existing host projects at their real paths
+  #   --filesystem=~/.ssh:ro   -> reuse host SSH keys for git remotes
+  #   --device=all             -> broad local device access
+  # Projects picked through the file-chooser portal are reachable without any of
+  # these; CodeBuddy's own state stays under the redirected HOME.
+modules:
+  - name: codebuddy
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 codebuddy-wrapper /app/bin/codebuddy
+      - install -Dm755 codebuddy-host-shim /app/lib/codebuddy/codebuddy-host-shim
+      - install -Dm755 codebuddy-setup-host-bin /app/lib/codebuddy/codebuddy-setup-host-bin
+      - install -Dm644 com.tencent.codebuddycn.desktop /app/share/applications/com.tencent.codebuddycn.desktop
+      - install -Dm644 com.tencent.codebuddycn.url-handler.desktop /app/share/applications/com.tencent.codebuddycn.url-handler.desktop
+      - install -Dm644 com.tencent.codebuddycn.metainfo.xml /app/share/metainfo/com.tencent.codebuddycn.metainfo.xml
+      - install -Dm644 com.tencent.codebuddycn.xml /app/share/mime/packages/com.tencent.codebuddycn.xml
+      - install -Dm644 com.tencent.codebuddycn.png /app/share/icons/hicolor/512x512/apps/com.tencent.codebuddycn.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: codebuddy-amd64.deb
+        only-arches:
+          - x86_64
+        url: https://download.codebuddy.cn/aiide/linux-x64/CodeBuddy-linux-x64-4.11.3.37298507-2345dde1-cn.deb
+        sha256: d0770a4563535226daace0a57f39812bc8a23aa758073a06fb77857efea888e8
+        size: 156796096
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: codebuddy-wrapper
+      - type: file
+        path: codebuddy-host-shim
+      - type: file
+        path: codebuddy-setup-host-bin
+      - type: file
+        path: com.tencent.codebuddycn.desktop
+      - type: file
+        path: com.tencent.codebuddycn.url-handler.desktop
+      - type: file
+        path: com.tencent.codebuddycn.metainfo.xml
+      - type: file
+        path: com.tencent.codebuddycn.xml
+      - type: file
+        path: com.tencent.codebuddycn.png
