@@ -9,9 +9,9 @@ FlatPark 的整个模式都是重新打包官方下载产物，而不是重新�
 
 ## 仅使用 extra-data
 
-FlatPark 会在构建时下载**厂商自己的发布产物**，并将其封装为 Flatpak。你运行的是官方 binary，而不是 FlatPark 重新构建的版本。
+FlatPark 会在安装时下载**厂商自己的发布产物**，并将其封装为 Flatpak。你运行的是官方 binary，而不是 FlatPark 重新构建的版本。当厂商发布的是 **AppImage** 时，FlatPark 会离线解包其末尾附带的文件系统——AppImage 只被读取、绝不执行，也不涉及 FUSE。
 
-有些软件包包含少量厂商下载产物之外的内容，例如 wrapper 脚本，或从自身已固定源码构建、但 Flatpak runtime 没有提供的库（比如托盘图标库）。这些只是应用外围的打包支撑，不会替换或修改厂商的 binary。
+有些软件包包含少量厂商下载产物之外的内容，例如 wrapper 脚本，或 Flatpak runtime 没有提供的库（比如托盘图标库）。共享的支持库来自 FlatPark 经过审核的 [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) repo，由固定源码构建。这些只是应用外围的打包支撑，不会替换或修改厂商的 binary。
 
 ## 固定并签名
 

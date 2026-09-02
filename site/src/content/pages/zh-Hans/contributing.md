@@ -7,7 +7,7 @@ order: 1
 
 欢迎添加任何提供公开下载的应用——FlatPark 不托管构建产物。只要应用在稳定、公开的发布 URL 上提供官方安装程序或预构建归档（extra-data 模式），就可以添加到这里。FlatPark 会在构建时获取产物，固定产物并对结果签名。
 
-也就是说，upstream 只需提供 `.deb`、`.rpm`、`.tar.gz`、zip 或官方安装脚本。**欢迎 Electron 和 Tauri 应用**，也**欢迎闭源应用**——许可证并非审核标准，产物来自哪里才是。编写自己的软件包前，值得先阅读 registry 中的三个软件包：
+也就是说，upstream 只需提供 `.deb`、`.rpm`、`.tar.gz`、zip、官方安装脚本或 AppImage。AppImage 已受支持——FlatPark 在安装时离线解包 AppImage 末尾附带的文件系统（绝不执行，也不需要 FUSE），使用 [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) 提供的 `appimage-tools` 辅助工具；参考 recipe：[`is.folo.Folo`](https://github.com/flatpark/flatpark/tree/main/registry/is.folo.Folo)（Electron）和 [`org.openshot.OpenShot`](https://github.com/flatpark/flatpark/tree/main/registry/org.openshot.OpenShot)（Qt5）。**欢迎 Electron 和 Tauri 应用**，也**欢迎闭源应用**——许可证并非审核标准，产物来自哪里才是。编写自己的软件包前，值得先阅读 registry 中的三个软件包：
 
 - **Electron**——
   [`pro.affine.AFFiNE`](https://github.com/flatpark/flatpark/tree/main/registry/pro.affine.AFFiNE)
@@ -25,6 +25,8 @@ order: 1
 ## 复用 FlatPark 预构建支持库
 
 FlatPark 在 [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) 中维护可复用、可再分发的支持库。这些归档由 GitHub Actions 根据固定了所有源码和 patch 的 manifest 构建，每个使用它们的应用也会按 SHA-256 固定生成的归档。这样可以避免在多个应用目录中分别编译和维护相同的依赖 stack。prebuilt repo 仅用于开源支持库；专有应用 payload 必须继续使用来自厂商官方 URL 的 `extra-data`。
+
+**共享的 `flatpark/prebuilt` stack 是软件包唯一可以作为 `type: archive`（或 `git`）module 引入的东西。** 这些字节会被打进 Flatpak ref，并从 FlatPark 自己的对象存储分发。应用 payload，以及只对单个应用有意义的依赖，必须走 `extra-data`——在安装时从厂商或 release URL 获取，永不进入 ref。不要把单个应用缺失的库从源码构建进 `/app`：如果多个应用共用，就在 `flatpark/prebuilt` 里加一个可复现的 release；否则作为第二个 `extra-data` 源发布（固定版本的发行版 `.deb`、上游 tarball 等）。
 
 对于在 `org.gnome.Platform//50` 上使用 `tray-icon` 的 Tauri 应用，请在应用 module 之前将当前 Ayatana stack 添加为普通 archive module：
 
@@ -249,7 +251,7 @@ jq -n --arg v "$version" \
 - **声明 `policy`**——如实设置 `proprietary`，并在 `dangerous_permissions` 中列出所有高风险权限。
 - **不会获取并运行任意代码**——厂商自己的 self-updater 写入应用数据目录没有问题；下载并执行未固定的第三方代码则不可接受。
 - **避免可逃逸 sandbox 的权限**——不得使用 `--filesystem=host`、`--filesystem=/` 或 `--talk-name=org.freedesktop.Flatpak`，除非已在 `policy.dangerous_permissions` 中声明并说明理由。
-- **提供可接受的产物**——tarball、`.deb`、`.rpm`、zip 或官方安装程序。**不接受 AppImage。**
+- **提供可接受的产物**——tarball、`.deb`、`.rpm`、zip、官方安装程序，或 AppImage（离线解包，绝不执行）。
 - **用途正当**——non-FOSS 没有问题；盗版、恶意软件和商标冒充则不被接受。
 
 Non-FOSS 商业应用（例如 broker）同样受欢迎，并采用相同标准：来源官方、未经修改、已经固定。

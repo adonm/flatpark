@@ -44,11 +44,12 @@ the go/no-go decision and the upstream comment in §5.
 
 ## 3. Feasibility filter — the hard gates (apply BEFORE packaging)
 1. **Not already on Flathub.** Verify: Flathub search + `https://flathub.org/api/v2/appstream/<id>` 404.
-2. **Self-contained official Linux binary — `.deb`, `.rpm`, `.tar.gz`, zip, or an official
-   installer.** These unpack offline with the runtime's `bsdtar`/`tar`. **AppImage is not
-   accepted** (it must be cracked at install time and its runtime wants libfuse, which the
-   runtime doesn't ship — this failed for Sniffnet): AppImage-only upstream → drop the
-   candidate. Toolkit is not a gate — Electron and Tauri are both fine.
+2. **Self-contained official Linux binary — `.deb`, `.rpm`, `.tar.gz`, zip, an official
+   installer, or an AppImage.** These unpack offline with the runtime's `bsdtar`/`tar`.
+   **AppImage is accepted** — a type-2 AppImage is an ELF stub + appended SquashFS, and
+   the `appimage-tools` prebuilt cracks it offline at install time (no libfuse, never
+   executed); packaging recipe in the playbook §3. Toolkit is not a gate — Electron and
+   Tauri are both fine.
 3. **Self-contained for its CORE feature.** Reject apps whose headline function
    shells out to a **host toolchain/daemon** not in the sandbox — the GUI merely
    launching is not enough (killed: NetPad→.NET SDK, quickgui→qemu, Guitar→git).
@@ -69,9 +70,20 @@ the go/no-go decision and the upstream comment in §5.
     (keeps Chromium's sandbox, not `--no-sandbox`) + `--unset-env=ELECTRON_RUN_AS_NODE`
     (leaks in from VS Code terminals; the wrapper's own `unset` can't reach zypak children).
   - **Tauri / WebKitGTK** → `WEBKIT_DISABLE_DMABUF_RENDERER=1` (else blank window).
+  - **AppImage** → the `.AppImage` is the extra-data payload; add `flatpark/prebuilt`'s
+    `appimage-tools` release as a 2nd extra-data source, then in `apply_extra`:
+    `off=$(appimage-tools/bin/appimage-offset app.AppImage);
+    appimage-tools/bin/unsquashfs -o "$off" -d app app.AppImage`. Never runs, no libfuse.
+    Wrap the AppDir launcher (read its name from the bundled `.desktop` `Exec=`).
+    Recipes: `is.folo.Folo` (Electron), `org.openshot.OpenShot` (Qt5).
   - Version-stamped top dir → rename to a stable path in `apply_extra`.
   - Missing single lib → supply it as a 2nd extra-data deb pinned on `snapshot.debian.org`
     (Sniffnet's libpcap).
+- **Bytes into R2:** the app payload and any per-app dependency ride `extra-data`
+  (fetched at install time, never baked into our ref). The *only* thing packaged as a
+  `type: archive` module is a shared support stack released from
+  [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) (Ayatana tray,
+  `appimage-tools`, …) — see [playbook §0 rule 2](packaging-playbook.md#0-golden-rules-read-every-time).
 - **Descriptor set** under `registry/<app-id>/`: `flatpark.yml`, `<id>.yml`,
   `<id>.metainfo.xml`, `<id>.desktop`, `<id>.png`, `apply_extra.sh`,
   `<app>-wrapper`, `resolve-update.sh`.

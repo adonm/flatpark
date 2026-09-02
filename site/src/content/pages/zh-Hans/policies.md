@@ -9,7 +9,7 @@ FlatPark 收录提供公开、稳定发布 URL 且可打包为 [extra-data](/zh-
 
 ## 我们收录的应用
 
-任何在稳定公开 URL 上提供官方预构建下载产物的应用都可以收录，包括安装程序、`.deb`、`.rpm` 或 tarball。FlatPark 会在构建时获取产物，按 checksum 固定产物并对结果签名。FlatPark 从不自行从源码构建应用，也从不重新托管 binary。（不接受 AppImage。）软件包可以从固定的源码构建 runtime 缺少的支持库，但应用本身始终是厂商自己的 binary。
+任何在稳定公开 URL 上提供官方预构建下载产物的应用都可以收录，包括安装程序、`.deb`、`.rpm`、tarball 或 AppImage。FlatPark 会在构建时获取产物，按 checksum 固定产物并对结果签名，安装时再从厂商自己的 URL 拉取。FlatPark 从不自行从源码构建应用，也从不重新托管 binary。AppImage 会被离线解包（直接读取其末尾附带的文件系统，绝不执行）。软件包可以从固定的源码构建 runtime 缺少的支持库，但应用本身始终是厂商自己的 binary。
 
 Toolkit 和许可证不会成为收录门槛。**欢迎 Electron 和 Tauri 应用**——registry 中已经提供这两类应用——也**欢迎闭源应用**。只要 upstream 发布 `.deb`、`.rpm`、tarball、zip 或官方安装程序，就可以在这里打包。
 
