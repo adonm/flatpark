@@ -12,11 +12,13 @@ listed.
 ## What we host
 
 Any app with an official, prebuilt download at a stable public URL — an
-installer, `.deb`, `.rpm`, or tarball. FlatPark fetches it at build, pins it by
-checksum, and signs the result. It never builds the app itself from source and
-never re-hosts the binary. (AppImage is not accepted.) A package may build
-supporting libraries the runtime lacks from pinned source — the application is
-always the vendor's own binary.
+installer, `.deb`, `.rpm`, tarball, or AppImage. FlatPark fetches it at build,
+pins it by checksum, and signs the result. It never builds the app itself from
+source and never re-hosts the binary — the download is pulled from the vendor's
+own URL at install time. AppImages are unpacked offline (their appended
+filesystem is read directly, never executed). A package may build supporting
+libraries the runtime lacks from pinned source — the application is always the
+vendor's own binary.
 
 Toolkit and license don't gate a listing. **Electron and Tauri apps are welcome**
 — the registry already ships both — and so are **closed-source apps**. If

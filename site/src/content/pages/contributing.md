@@ -10,8 +10,15 @@ long as the app ships an official installer or prebuilt archive at a stable,
 public release URL (extra-data style), it can be added here. FlatPark fetches it
 at build, pins it, and signs the result.
 
-That means a `.deb`, `.rpm`, `.tar.gz`, zip, or an official installer script is
-all upstream needs to provide. **Electron and Tauri apps are welcome**, and so
+That means a `.deb`, `.rpm`, `.tar.gz`, zip, an official installer script, or an
+AppImage is all upstream needs to provide. AppImages are supported — FlatPark
+unpacks the filesystem appended to the AppImage offline at install time (it is
+never executed and needs no FUSE), using the `appimage-tools` helper from
+[`flatpark/prebuilt`](https://github.com/flatpark/prebuilt);
+[`is.folo.Folo`](https://github.com/flatpark/flatpark/tree/main/registry/is.folo.Folo)
+(Electron) and
+[`org.openshot.OpenShot`](https://github.com/flatpark/flatpark/tree/main/registry/org.openshot.OpenShot)
+(Qt5) are the reference recipes. **Electron and Tauri apps are welcome**, and so
 are **closed-source apps** — the license is not the bar; where the bytes come
 from is. Three packages in the registry are worth reading before you write your
 own:
@@ -55,6 +62,15 @@ consuming app pins the resulting archive by SHA-256. This avoids compiling and
 maintaining the same dependency stack independently in many app directories.
 The prebuilt repository is only for open-source supporting libraries; proprietary
 app payloads must continue to use `extra-data` from the vendor's official URL.
+
+**A shared `flatpark/prebuilt` stack is the _only_ thing a package may pull in as a
+`type: archive` (or `git`) module.** Those bytes are baked into the Flatpak ref and
+served from FlatPark's own object storage. The app payload, and any dependency that
+matters to just one app, must be `extra-data` — fetched from the vendor or a release
+URL at install time so it never lands in the ref. Don't source-build a single app's
+missing library into `/app`: if it's shared by several apps, add one reproducible
+release to `flatpark/prebuilt`; otherwise ship it as a second `extra-data` source
+(a pinned distro `.deb`, an upstream tarball, …).
 
 For a Tauri application that uses `tray-icon` on `org.gnome.Platform//50`, add
 the current Ayatana stack as a normal archive module before the app module:
@@ -360,8 +376,8 @@ To pre-empt the common rejections, make sure your submission:
 - **Avoids sandbox-escape permissions** — no `--filesystem=host`,
   `--filesystem=/`, or `--talk-name=org.freedesktop.Flatpak`, unless declared in
   `policy.dangerous_permissions` and argued for.
-- **Ships an accepted artifact** — tarball, `.deb`, `.rpm`, zip, or an official
-  installer. **AppImage is not accepted.**
+- **Ships an accepted artifact** — tarball, `.deb`, `.rpm`, zip, an official
+  installer, or an AppImage (unpacked offline, never executed).
 - **Has a legitimate purpose** — non-FOSS is fine; piracy, malware, and trademark
   impersonation are not.
 

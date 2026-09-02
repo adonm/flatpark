@@ -42,10 +42,11 @@ tier:
   desktop/metainfo/icon + an `apply_extra` that unpacks the official download; no
   patch/`sed`/recompile of the payload; shipped artifact == what the official
   URL serves. *External* sandbox adaptation is allowed and does not break Tier 2:
-  wrapper env vars, extra modules supplying libraries the runtime lacks, `PATH`
-  shims, an `LD_PRELOAD` shim (`com.ccswitch.desktop`, `io.enpass.Enpass`) —
-  review those as code, since they run. (3) **pinned bytes** — sha256 (+ size for
-  extra-data).
+  wrapper env vars, a library the runtime lacks (from a shared `flatpark/prebuilt`
+  stack or a second `extra-data` source — not a per-app source build into the ref;
+  see Phase 3), `PATH` shims, an `LD_PRELOAD` shim (`com.ccswitch.desktop`,
+  `io.enpass.Enpass`) — review those as code, since they run. (3) **pinned bytes** —
+  sha256 (+ size for extra-data).
 - **Tier 3 — opaque third-party / submitter-built binary.** Neither
   source-verifiable nor a pinned official-upstream release (PR #13). **Reject.**
 
@@ -83,6 +84,13 @@ artifact provenance tier (1/2/3).
 - **Source pinning, per type:** `git` → immutable `commit` (reject branch/tag
   only); `archive` → `sha256` + genuine-upstream URL; `extra-data` → `sha256` +
   non-zero `size`; `file` → local, reviewed as part of the PR; other → NEEDS-HUMAN.
+- **What may land bytes in `/app` (→ R2):** only a shared support stack released from
+  [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) (Ayatana tray,
+  `appimage-tools`, mpv/sql/opencv stacks, …), consumed as a pinned `type: archive`
+  module. The app payload and any single-app dependency must be `extra-data` (fetched at
+  install, never baked into the ref). A per-app `git`/`archive`/remote source built into
+  `/app` is an auto-reject; a `buildsystem: simple` module that only `cp`s in-repo
+  wrapper/desktop/metainfo files is fine (no remote bytes).
 - **finish-args risk scan:** near-auto-reject on escape perms
   (`--talk-name=org.freedesktop.Flatpak`, `--filesystem=host`, `--filesystem=/`)
   unless declared in `policy.dangerous_permissions` **with a justification** (then
@@ -126,7 +134,11 @@ code. Note network endpoints and broad filesystem×network combos.
   same checks; deb/rpm → inspect payload without running maintainer scripts
   (review those statically); shell installer (`.sh`) → static review where
   practical, else treat as opaque official prebuilt needing stronger Tier-2
-  provenance + human judgment; **AppImage → not accepted (reject)**.
+  provenance + human judgment; **AppImage → accepted**: it must be cracked offline,
+  never executed — `apply_extra` runs `flatpark/prebuilt`'s `appimage-tools`
+  (`appimage-offset` + `unsquashfs -o <offset>`) against the appended SquashFS, with
+  **no libfuse and no `./*.AppImage` invocation**. Reject an AppImage recipe that
+  runs the stub, wants FUSE, or `--extract`s by executing it.
 - **[Tier 1]** shipped interpreted code == public source (byte-diff each file).
 - **[Tier 2]** shipped artifact == official download (re-fetch + hash-compare);
   build did not alter the payload.
@@ -161,7 +173,12 @@ Reviewer recommends only — a human merges.
   payload, OR shipped artifact ≠ official download. (External adaptation —
   wrapper env, extra library modules, `PATH`/`LD_PRELOAD` shims — is not a
   modification; review it as code.)
-- AppImage artifact.
+- AppImage recipe that executes the stub or needs libfuse (offline `unsquashfs` via
+  `flatpark/prebuilt` `appimage-tools` is the only accepted path).
+- A `type: archive` / `type: git` / remote source landing bytes in `/app` that is **not**
+  a shared support stack released from `flatpark/prebuilt`. App payloads and single-app
+  dependencies must be `extra-data` — they must not be baked into the ref / shipped from
+  R2. (Source-building one app's missing library into `/app` is this reject.)
 - Runtime fetch-and-exec of arbitrary / unpinned code as a core mechanism (the
   vendor self-updater exception does not count).
 - `update.command` that is not a simple relative script path.
@@ -195,6 +212,7 @@ source-verifiable · 2 = official prebuilt · ★ = all.
 | 2.5 | Provenance | Trust tier: established / unknown-plausible / throwaway-suspicious | ★ | | |
 | 2.6 | Provenance | Artifact provenance tier: 1 source-verifiable / 2 official prebuilt / 3 opaque (→reject) | ★ | | |
 | 3.1 | Manifest | Sources pinned per type (git→commit; archive/extra-data→sha256; extra-data size≠0; file→local) | ★ | | |
+| 3.1b | Manifest | Only a shared `flatpark/prebuilt` stack lands remote bytes in `/app`; app payload + single-app deps are `extra-data`, not built into the ref | ★ | | |
 | 3.2 | Manifest | finish-args has no escape perms (or: declared in `dangerous_permissions` + justified → needs-human); broad perms justified | ★ | | |
 | 3.3 | Manifest | `policy:` block honest: `proprietary` accurate, `dangerous_permissions` vs actual (warn until schema) | ★ | | |
 | 3.4 | Manifest | build-commands install-only; no patch/recompile of vendor payload (external wrapper/module/shim adaptation OK, reviewed as code) | ★ | | |
@@ -208,7 +226,7 @@ source-verifiable · 2 = official prebuilt · ★ = all.
 | 4.2 | Runtime | `update.command` / resolve script reviewed as code (runs on CI, repo-write) | ★ | | |
 | 4.3 | Runtime | Network endpoints noted; no broad filesystem×network combo | ★ | | |
 | 5.1 | Artifact | extra-data sha256 == manifest pin | ★ | | |
-| 5.2 | Artifact | Inspected per type (tar/zip/tgz/deb/rpm listed clean; AppImage rejected; .sh static-or-opaque); no traversal/symlink/setuid | ★ | | |
+| 5.2 | Artifact | Inspected per type (tar/zip/tgz/deb/rpm listed clean; AppImage cracked offline via `appimage-tools` `unsquashfs`, stub never run; .sh static-or-opaque); no traversal/symlink/setuid | ★ | | |
 | 5.3 | Artifact | shipped interpreted code == public source (byte diff) | 1 | | |
 | 5.4 | Artifact | shipped artifact == official download (re-fetch & hash); build did not alter payload | 2 | | |
 | 5.5 | Artifact | "official" prebuilts hash-verified vs upstream (from-source w/o reproducible → NEEDS-HUMAN) | ★ | | |

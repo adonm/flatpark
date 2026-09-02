@@ -21,8 +21,8 @@ itself from source.
   sandboxed; FlatPark keeps the permissions tight and surfaces them on every
   app page.
 - **One place to install and update.** Apps that otherwise ship only a raw
-  `.deb`, `.rpm`, or tarball become installable and auto-updating through one
-  remote. (AppImage is not accepted — see [listing policies](/policies/).)
+  `.deb`, `.rpm`, tarball, or AppImage become installable and auto-updating
+  through one remote.
 - **Judged by what it does, not how it was written.** The "AI slop" label is
   rampant — Flathub PR queues, Reddit, everywhere — and it routinely dismisses
   good software with no actual review behind it. FlatPark refuses that reflex:

@@ -10,13 +10,17 @@ Here is exactly what that means for what you install.
 
 ## extra-data only
 
-FlatPark downloads the **vendor's own release** at build time and wraps it as a
+FlatPark downloads the **vendor's own release** at install time and wraps it as a
 Flatpak. The application you run is the official binary, not a FlatPark rebuild.
+When the vendor ships an **AppImage**, FlatPark unpacks the filesystem appended to
+it offline — the AppImage is read, never executed, and no FUSE is involved.
 
 Some packages ship a little more than the vendor's download: a wrapper script, or
-a library the Flatpak runtime doesn't provide (a tray-icon library, say) built
-from its own pinned source. That is packaging scaffolding around the app — it
-never replaces or patches the vendor's binary.
+a library the Flatpak runtime doesn't provide (a tray-icon library, say). Shared
+support libraries come from FlatPark's audited
+[`flatpark/prebuilt`](https://github.com/flatpark/prebuilt) repo, built from pinned
+source. That is packaging scaffolding around the app — it never replaces or
+patches the vendor's binary.
 
 ## Pinned and signed
 

@@ -21,24 +21,35 @@ and the other should be updated to match.
    own release, unpack it, wrap it. Never patch or recompile the payload. Adapting it to
    the sandbox from the *outside* — wrapper env, extra modules for missing libs, `PATH`
    shims — is fine; the bytes that run must still be the vendor's.
-2. **Rank by fit, not stars.** Not-on-Flathub + clean sandbox/extra-data + maintained +
+2. **Nothing an app fetches goes into R2 except a shared `flatpark/prebuilt` stack.**
+   `type: archive` / `type: git` / any remote source that lands bytes in `/app` bakes
+   those bytes into the flatpak ref and ships them from `dl.flatpark.org` (R2) — we pay
+   for that storage and bandwidth. The **only** sanctioned exception is a reusable,
+   multi-app support stack released from [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt)
+   (the Ayatana tray stack, `appimage-tools`, the mpv/sql/opencv stacks, …), consumed as a
+   pinned archive module. **Everything else — the app payload and any sizeable single-app
+   dependency — is `extra-data`**, downloaded from the vendor / release URL at install
+   time so the bytes never touch our repo. A missing library that's genuinely shared by
+   several apps → add one reproducible release to `flatpark/prebuilt`, don't source-build
+   it per app.
+3. **Rank by fit, not stars.** Not-on-Flathub + clean sandbox/extra-data + maintained +
    genuinely useful. >~200 stars is already "popular enough."
-3. **Describe only what *our* package does.** Do **not** claim upstream is broken, needs a
+4. **Describe only what *our* package does.** Do **not** claim upstream is broken, needs a
    workaround, or that we "fix"/"sidestep"/"avoid" their bug — in manifest comments, PRs,
    **or** upstream messages. See §7.1; this is a hard rule (we've already had to walk one
    back publicly).
-4. **The review gate — two outward-facing actions require an explicit human OK first:**
+5. **The review gate — two outward-facing actions require an explicit human OK first:**
    **(a) opening a PR to this repo, (b) posting anything to an upstream repo.** Prepare
    everything, **present the draft, then wait.** Internal steps (branch, commit, push,
    local build/test) don't need the gate.
-5. **Never open a PR for an app you haven't run.** Build it, `flatpak install` it into the
+6. **Never open a PR for an app you haven't run.** Build it, `flatpak install` it into the
    isolated test installation, launch it, exercise the core feature (§4). A manifest that
    only validates is not tested.
-6. **Never post upstream until the package is live and smoke-tested.** A 404 install link
+7. **Never post upstream until the package is live and smoke-tested.** A 404 install link
    or a crash-on-launch is worse than staying silent — especially with maintainers already
    sensitive about AI-assisted work.
-7. **Never self-merge.** Open the PR; leave the merge to the maintainer.
-8. **De-list on request, no argument.** If an upstream says "please don't," remove it right
+8. **Never self-merge.** Open the PR; leave the merge to the maintainer.
+9. **De-list on request, no argument.** If an upstream says "please don't," remove it right
    away and don't re-post.
 
 ---
@@ -70,9 +81,10 @@ The hard gates (detail in [`discovery-pipeline.md`](discovery-pipeline.md) §3):
 1. **Not on Flathub.** Verify by **name** via Flathub search **and** `/api/v2/appstream/<id>`
    404 — don't trust a guessed app-id (PixiEditor slipped through once by only checking the
    `com.` variant).
-2. **Self-contained official Linux binary — `.deb`/`.rpm`/`.tar.gz`/zip/official installer.**
-   These unpack offline with the runtime's `bsdtar`/`tar`. **AppImage is not accepted**
-   (needs libfuse, not in the runtime); AppImage-only upstream → drop the candidate.
+2. **Self-contained official Linux binary — `.deb`/`.rpm`/`.tar.gz`/zip/official installer
+   /AppImage.** These unpack offline with the runtime's `bsdtar`/`tar`. **AppImage is now
+   accepted** — a type-2 AppImage is an ELF stub + an appended SquashFS, and the
+   `appimage-tools` prebuilt cracks it offline (no libfuse, never executed); recipe in §3.
 3. **Self-contained for its CORE feature.** Reject if the headline function shells out to a
    host toolchain/daemon not in the sandbox (killed: NetPad→.NET SDK, quickgui→qemu).
 4. **No Linux caps `finish-args` can't grant** (`CAP_NET_RAW`/`CAP_NET_ADMIN` → packet
@@ -132,6 +144,27 @@ Detail + schema in the [contributing guide](https://flatpark.org/contributing/).
   - **Bundled JRE** (Java desktop apps) → [`registry/com.interactivebrokers.ibkrdesktop`](../registry/com.interactivebrokers.ibkrdesktop),
     which fetches a Zulu JRE tarball as a second extra-data source and stages it at
     `/app/extra/jre` for the wrapper to exec.
+  - **AppImage** → the `.AppImage` is the app's extra-data payload; add
+    [`flatpark/prebuilt`](https://github.com/flatpark/prebuilt)'s **`appimage-tools`**
+    release as a **second extra-data source** (copy the current URL + SHA-256 from
+    [`registry/is.folo.Folo`](../registry/is.folo.Folo)). Never runs, never needs libfuse.
+    In `apply_extra`, unpack `appimage-tools` with `bsdtar`, then crack the SquashFS
+    appended to the stub:
+    ```sh
+    off=$(appimage-tools/bin/appimage-offset app.AppImage)
+    appimage-tools/bin/unsquashfs -o "$off" -d app app.AppImage
+    ```
+    Wrap the AppDir's own launcher — read its name out of the bundled `.desktop` `Exec=`
+    (electron-builder names it after `productName`), symlink a stable one, don't hardcode.
+    `unsquashfs` here handles gzip/xz/lz4/zstd but **not LZO** (needs a lib the runtime
+    lacks; almost no AppImage uses it). Recipes: Electron AppImage →
+    [`registry/is.folo.Folo`](../registry/is.folo.Folo) (`base:
+    org.electronjs.Electron2.BaseApp` + zypak); Qt5 AppImage →
+    [`registry/org.openshot.OpenShot`](../registry/org.openshot.OpenShot) — bundled Qt5
+    wayland plugins often omit `libQt5WaylandClient.so.5`, so pin `QT_QPA_PLATFORM=xcb`
+    + `--socket=x11` and unset `QT_QPA_PLATFORM`. `--persist=<dotdir>` is silently
+    ignored when `--filesystem=home`/`host` is also granted — grant only `xdg-*` subdirs
+    so `$HOME` stays the per-app dir.
   - Version-stamped top dir → rename to a stable path in `apply_extra`.
   - **Don't hardcode a name the payload owns.** Pin refreshes are automated, so any
     name upstream can change between releases — above all the launcher binary — must be
@@ -207,7 +240,7 @@ Detail + schema in the [contributing guide](https://flatpark.org/contributing/).
 
 ## 7. Engage upstream
 
-Only after the package is **live + smoke-tested** (Golden rule 5). Reuse what §1 found
+Only after the package is **live + smoke-tested** (Golden rule 7). Reuse what §1 found
 (demand + the maintainer's stated concerns).
 
 ### 7.1 The hard rule: no inaccurate or disparaging claims
@@ -311,4 +344,4 @@ said no.
   the maintainer kicks off an **AI-led batch update** that bumps and re-tests the whole catalog at
   once — so the catalog never splits across two majors (see §3, "Pick the runtime").
 - The §1–§2 crawl + §2 gates are scriptable into a shortlist; §3 packaging is templated per recipe.
-  Keep the **review gate** on the two outward-facing actions (§0.4) even as the rest automates.
+  Keep the **review gate** on the two outward-facing actions (§0.5) even as the rest automates.
