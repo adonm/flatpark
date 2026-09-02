@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=CodeBuddy CN
+GenericName=AI Code Editor
+Comment=Tencent's AI-native code editor
+Exec=codebuddy %F
+Icon=com.tencent.codebuddycn
+Terminal=false
+StartupNotify=true
+StartupWMClass=CodeBuddy CN
+Categories=Development;IDE;TextEditor;
+MimeType=application/x-buddycn-workspace;
+Keywords=codebuddy;ai;agent;editor;ide;code;tencent;
+Actions=new-empty-window;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=codebuddy --new-window %F
+Icon=com.tencent.codebuddycn

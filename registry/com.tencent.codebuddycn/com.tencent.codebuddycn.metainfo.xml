@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.tencent.codebuddycn</id>
+  <name>CodeBuddy CN</name>
+  <summary>Tencent's AI-native code editor (China build)</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary=https://www.codebuddy.ai/docs/legal/terms-of-service</project_license>
+  <developer id="com.tencent">
+    <name>Tencent</name>
+  </developer>
+  <url type="homepage">https://www.codebuddy.cn/ide/</url>
+  <url type="download">https://www.codebuddy.cn/ide/</url>
+  <url type="help">https://www.codebuddy.ai/docs/ide/Introduction</url>
+  <description>
+    <p>This is a community package of CodeBuddy CN, maintained independently and unaffiliated with Tencent. It repackages the official upstream Linux Debian build unmodified.</p>
+    <p>CodeBuddy is Tencent's AI-native code editor, built on Code - OSS (the open-source core of Visual Studio Code). It keeps the editor, extensions and keybindings of VS Code and adds an agent that plans and carries out multi-step work across a codebase, inline edits from a prompt, and a chat with the open project in context. Extensions are installed from the Open VSX registry.</p>
+    <ul>
+      <li>Hand the agent a task and review the edits it proposes across files.</li>
+      <li>Rewrite a selection from a natural-language instruction, in place.</li>
+      <li>Ask questions about the open project, with the relevant code in context.</li>
+      <li>Preview a running project and iterate on it alongside the agent.</li>
+    </ul>
+    <p>This is the China ("CN") build — the only one Tencent ships for Linux. Its interface is Chinese-first and the AI features require signing in with a Tencent Cloud account; the editor itself is free to install. x86_64 only.</p>
+    <p>Permissions: this package grants network, display, GPU, audio, notifications and keyring access, plus its own <code>~/.codebuddycn</code> directory, where CodeBuddy keeps your extensions, agent data and CLI state (user settings go to the sandboxed <code>~/.config</code>). It does not grant broad home-directory access — pick a project through the file-chooser portal and CodeBuddy can work in it.</p>
+    <p>The editor and its agent shell out to developer tools that no Flatpak runtime ships. This package puts a bridge on the app's PATH that forwards those commands to the same tools on your host, so your existing Git, language toolchains and test runners — and the credentials you have already authorized there — are what run in the integrated terminal and under the agent. FlatPark does not bundle or authenticate any of them. Commands that the sandbox provides itself, including the shell and coreutils, keep running inside it.</p>
+    <p>Because host commands run against real host paths, a project opened through the portal is visible to the editor but not at the same path on the host. To let the two line up, grant access to where your projects live:</p>
+    <ul>
+      <li>Open host projects at their real paths: <code>flatpak override --user --filesystem=home com.tencent.codebuddycn</code></li>
+      <li>Or scope it to one directory: <code>flatpak override --user --filesystem=~/Projects com.tencent.codebuddycn</code></li>
+      <li>Reuse your host SSH keys for Git remotes: <code>flatpak override --user --filesystem=~/.ssh:ro com.tencent.codebuddycn</code></li>
+    </ul>
+    <p>Updates come through Flatpak: this package tracks upstream's own version feed, so a new upstream build arrives with <code>flatpak update</code>. CodeBuddy's built-in updater stays switched off here, the same way it is in the Debian build this package repackages.</p>
+  </description>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Development</category>
+    <category>IDE</category>
+    <category>TextEditor</category>
+  </categories>
+  <keywords>
+    <keyword>ai</keyword>
+    <keyword>agent</keyword>
+    <keyword>coding</keyword>
+    <keyword>editor</keyword>
+    <keyword>ide</keyword>
+    <keyword>codebuddy</keyword>
+    <keyword>tencent</keyword>
+  </keywords>
+  <branding>
+    <color type="primary">#6c4dff</color>
+  </branding>
+  <recommends>
+    <display_length compare="ge">1024</display_length>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <provides>
+    <binary>codebuddy</binary>
+    <mediatype>x-scheme-handler/codebuddycn</mediatype>
+    <mediatype>application/x-buddycn-workspace</mediatype>
+  </provides>
+  <launchable type="desktop-id">com.tencent.codebuddycn.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://download.codebuddy.cn/web/website/77c2617b394171f8938c8d4f0abce65e306fb458/assets/image-1-BqtjzfYz.png</image>
+      <caption>The agent planning a multi-step task in CodeBuddy</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://download.codebuddy.cn/web/website/77c2617b394171f8938c8d4f0abce65e306fb458/assets/image-3-D3h1J6IO.png</image>
+      <caption>Editing, a live preview and the agent panel side by side</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="4.11.3.37298507-2345dde1-cn" date="2026-08-29">
+      <url>https://www.codebuddy.ai/docs/ide/Change-Log</url>
+    </release>
+  </releases>
+</component>

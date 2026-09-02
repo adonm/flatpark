@@ -1,0 +1,24 @@
+id: com.tencent.codebuddycn
+name: CodeBuddy CN
+summary: Tencent's AI-native code editor (China build)
+website: https://www.codebuddy.cn/ide/
+source_url: https://www.codebuddy.cn/ide/
+build:
+  manifest: com.tencent.codebuddycn.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: AI
+  tags:
+    - AI
+    - Agents
+    - Coding
+    - IDE
+    - Electron
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: true
+  extra_data_first: true
+  dangerous_permissions:
+    - --talk-name=org.freedesktop.Flatpak
