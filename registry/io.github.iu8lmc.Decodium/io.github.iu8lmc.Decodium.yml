@@ -61,8 +61,8 @@ modules:
         filename: decodium.AppImage
         only-arches:
           - x86_64
-        url: https://github.com/iu8lmc/Decodium-4.0-Core-Shannon/releases/download/v1.0.654/decodium4-ft2-1.0.654-linux-x86_64.AppImage
-        sha256: 84c5ca0a48f97580bf46f08d45b4be5fa8e16063d6188f3873e3c76ed21c895a
+        url: https://github.com/iu8lmc/Decodium-4.0-Core-Shannon/releases/download/v1.0.655/decodium4-ft2-1.0.655-linux-x86_64.AppImage
+        sha256: b314732dbea78c067383849fb4ee72dbb8dc424209f4f5b8c02b1cd4127e4f7f
         size: 100121080
       # END MANAGED EXTRA-DATA
       - type: file
