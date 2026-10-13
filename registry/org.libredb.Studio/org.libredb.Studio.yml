@@ -47,9 +47,9 @@ modules:
         filename: libredb-studio-desktop.deb
         only-arches:
           - x86_64
-        url: https://github.com/libredb/libredb-studio/releases/download/0.17.0/libredb-studio-desktop_0.17.0_amd64.deb
-        sha256: c819816985cdf374b29a49a38f2de37abab0e1948e068bdd8fae71d057da7847
-        size: 121811860
+        url: https://github.com/libredb/libredb-studio/releases/download/0.18.3/libredb-studio-desktop_0.18.3_amd64.deb
+        sha256: 4c02b2267ce4803c98b4d803fa2a76655fe3a338e42978f0fa09359239fb5631
+        size: 136003084
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
