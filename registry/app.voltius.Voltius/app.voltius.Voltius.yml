@@ -47,9 +47,9 @@ modules:
         filename: voltius.deb
         only-arches:
           - x86_64
-        url: https://github.com/VoltiusApp/voltius/releases/download/v0.43.0/Voltius_0.43.0_amd64.deb
-        sha256: d95f1bbb25a0eeee8826dfa3e3bcd85affc68a5a3fd4c64235218bcba66f48ce
-        size: 15419644
+        url: https://github.com/VoltiusApp/voltius/releases/download/v0.63.1/Voltius_0.63.1_amd64.deb
+        sha256: 4baa450ba26afa172cec568f2038df91568b4caed6d85633634b6b4eccfb76d5
+        size: 15910226
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
