@@ -48,9 +48,9 @@ modules:
         filename: folia-major.deb
         only-arches:
           - x86_64
-        url: https://github.com/chthollyphile/folia-major/releases/download/v0.7.9/folia-major-0.7.9-linux-amd64.deb
-        sha256: 1947c19b3e02b0a6df246d85c5833d8abf04ecb9366227d05a6515194505791a
-        size: 137188260
+        url: https://github.com/chthollyphile/folia-major/releases/download/v0.7.22/folia-major-0.7.22-linux-amd64.deb
+        sha256: c6e846cb9b9009b47e60a81e84777dc7b1b9db8231bc275acb46fed5ea76f6ac
+        size: 248937288
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
