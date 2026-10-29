@@ -54,9 +54,9 @@ modules:
         filename: lap.deb
         only-arches:
           - x86_64
-        url: https://github.com/julyx10/lap/releases/download/v0.3.2/Lap_0.3.2_amd64.deb
-        sha256: e4ade00a687c93e2770df3b512cade70a01ce0b24035a27118dee286b9c556b3
-        size: 214456658
+        url: https://github.com/julyx10/lap/releases/download/v0.3.3/Lap_0.3.3_amd64.deb
+        sha256: fc245edc7057b4244a099bc6bc9d739f23f7cb20b736472e9e0490ea6803c216
+        size: 215185744
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
