@@ -40,9 +40,9 @@ modules:
         filename: hiresti.deb
         only-arches:
           - x86_64
-        url: https://github.com/yelanxin/hiresTI/releases/download/v1.9.10/hiresti_1.9.10_amd64_ubuntu2604.deb
-        sha256: 3b927d64a9c6461f335131a3345408e9dc971f09a12b9b0c71733232e4d0ba8b
-        size: 26067600
+        url: https://github.com/yelanxin/hiresTI/releases/download/v1.9.12/hiresti_1.9.12_amd64_ubuntu2604.deb
+        sha256: 2488a4b34ed4c99c21fb81d775407e54db908b061c9f3a03bba9cc4bf1c269d2
+        size: 26459504
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
