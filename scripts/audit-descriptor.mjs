@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Audit a FlatPark registry descriptor + its manifest against the review-bar
-// guardrails (see docs/pr-review.md). Dependency-free: the PR gate runs `node`
+// guardrails (see docs/reviewers/review-runbook.md). Dependency-free: the PR gate runs `node`
 // before any `npm ci`, so this uses the same manual line-scan style as
 // read-descriptor.mjs rather than a YAML library.
 //
@@ -8,7 +8,7 @@
 //
 // Exit 0 = no hard failures (warnings allowed); exit 1 = hard failure(s).
 // Hard failures print `FAIL: ...`; advisory findings print `WARN: ...`.
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 const file = process.argv[2];
@@ -32,7 +32,7 @@ function unquote(v) {
   return v;
 }
 
-// --- descriptor: build.manifest, update.command, policy.{proprietary,dangerous_permissions}
+// --- descriptor: build.manifest, update.{command,auto}, policy.{proprietary,dangerous_permissions}
 let descText;
 try {
   descText = readText(file);
@@ -44,8 +44,10 @@ try {
 let appId = '';
 let manifestName = '';
 let updateCommand = '';
+let updateAuto = null;
 let proprietary = null;
 const dangerousPerms = [];
+const packagingKinds = [];
 {
   let section = null;
   let inDanger = false;
@@ -60,6 +62,11 @@ const dangerousPerms = [];
       section = m && m[2] === '' ? m[1] : null;
       continue;
     }
+    if (section === 'packaging') {
+      const km = s.match(/^(?:-\s+)?kind:\s*(.*)$/);
+      if (km) packagingKinds.push(unquote(km[1]));
+      continue;
+    }
     if (s.startsWith('- ')) {
       if (section === 'policy' && inDanger) dangerousPerms.push(unquote(s.slice(2)));
       continue;
@@ -69,6 +76,7 @@ const dangerousPerms = [];
     const [, k, v] = m;
     if (section === 'build' && k === 'manifest') manifestName = unquote(v);
     else if (section === 'update' && k === 'command') updateCommand = unquote(v);
+    else if (section === 'update' && k === 'auto') updateAuto = unquote(v);
     else if (section === 'policy') {
       if (k === 'proprietary') proprietary = unquote(v) === 'true';
       else if (k === 'dangerous_permissions') {
@@ -96,6 +104,17 @@ if (appId) {
 // update.command must be a simple relative script path (it runs in CI).
 if (updateCommand && !/^\.\/[A-Za-z0-9._-]+$/.test(updateCommand)) {
   fail(`update.command must be a simple relative script path (e.g. ./resolve-update.sh), got: ${updateCommand}`);
+}
+// read-descriptor.mjs treats anything but `false` as on, so a typo would
+// silently re-enable the sweep.
+if (updateAuto !== null && updateAuto !== 'true' && updateAuto !== 'false') {
+  fail(`update.auto must be true or false, got: ${updateAuto}`);
+}
+// check-updates.sh runs it directly, so a missing exec bit only shows up as
+// "Permission denied" in the nightly sweep.
+if (updateCommand && /^\.\/[A-Za-z0-9._-]+$/.test(updateCommand)) {
+  const script = join(dirname(file), updateCommand);
+  if (existsSync(script) && !(statSync(script).mode & 0o111)) fail(`update.command is not executable: ${updateCommand} (git update-index --chmod=+x)`);
 }
 
 // --- manifest: finish-args, sources, build-commands
@@ -184,14 +203,19 @@ for (const src of sources) {
 const ESCAPE = ['--talk-name=org.freedesktop.Flatpak', '--filesystem=host', '--filesystem=/'];
 // G2(b) — broad perms must be declared in policy.dangerous_permissions (warn until schema lands).
 const WATCH = ['--device=all', '--filesystem=home'];
+// Compare --filesystem grants without their :ro / :rw / :create mode, so
+// home:ro and host:ro hit the same lists as home and host.
+const baseFs = (p) => p.replace(/^(--filesystem=[^:]+):(ro|rw|create)$/, '$1');
+const declared = new Set(dangerousPerms.map(baseFs));
 for (const fa of finishArgs) {
-  if (ESCAPE.includes(fa)) {
+  const base = baseFs(fa);
+  if (ESCAPE.includes(base)) {
     // A declared escape permission is an explicit, reviewed exemption: downgrade
     // the hard fail to a warning so it stays visible without blocking the gate.
-    if (dangerousPerms.includes(fa)) warn(`sandbox-escape permission ${fa} (declared in policy.dangerous_permissions)`);
+    if (declared.has(base)) warn(`sandbox-escape permission ${fa} (declared in policy.dangerous_permissions)`);
     else fail(`sandbox-escape permission: ${fa}`);
   }
-  if (WATCH.includes(fa) && !dangerousPerms.includes(fa)) {
+  if (WATCH.includes(base) && !declared.has(base)) {
     warn(`dangerous permission ${fa} not declared in policy.dangerous_permissions`);
   }
 }
@@ -209,6 +233,44 @@ try {
 for (const text of scan) {
   for (const re of FETCH) {
     if (re.test(text)) { warn(`possible runtime fetch-and-exec: ${text.trim().split('\n')[0].slice(0, 80)}`); break; }
+  }
+}
+
+// G6 — packaging transparency (shown on the site as the packaging level). What
+// the scripts plainly do must be declared under `packaging:`, and an
+// open-source app may not modify the vendor's build at all.
+const PACKAGING_KINDS = new Set([
+  'support-files', 'seeded-config', 'injected-code', 'file-change', 'runtime-install', 'host-command', 'sandbox-off',
+]);
+for (const k of packagingKinds) if (!PACKAGING_KINDS.has(k)) fail(`packaging: unknown kind "${k}"`);
+{
+  const declared = new Set(packagingKinds);
+  const codeOnly = (text) => text.split('\n').filter((l) => !/^\s*(#|\/\/|\*|\/\*)/.test(l)).join('\n');
+  let code = '';
+  let hasC = false;
+  try {
+    for (const f of readdirSync(dir)) {
+      if (/\.(xml|png|svg|desktop|md)$/.test(f) || f === 'flatpark.yml' || f === 'resolve-update.sh') continue;
+      if (/\.c$/.test(f)) hasC = true;
+      try { code += '\n' + codeOnly(readText(join(dir, f))); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+  const need = (kind, why) => {
+    if (!declared.has(kind)) fail(`packaging: ${why}, but packaging: declares no "${kind}" entry`);
+  };
+  if (hasC || /(^|[\s;"'])(export\s+)?(ZYPAK_)?LD_PRELOAD=|--env=LD_PRELOAD=/m.test(code)) {
+    need('injected-code', 'a C module or an LD_PRELOAD puts code into the app process');
+  }
+  if (finishArgs.includes('--talk-name=org.freedesktop.Flatpak') || /\bflatpak-spawn\b/.test(code)) {
+    need('host-command', 'the app can run host commands (org.freedesktop.Flatpak / flatpak-spawn)');
+  }
+  if (/--no-sandbox\b|WEBKIT_DISABLE_SANDBOX/.test(code)) {
+    need('sandbox-off', "the app's own sandbox is turned off (--no-sandbox / WEBKIT_DISABLE_SANDBOX)");
+  }
+  if (proprietary === false) {
+    for (const k of ['injected-code', 'file-change', 'runtime-install']) {
+      if (declared.has(k)) fail(`packaging: "${k}" is not allowed for an open-source app (it ships unmodified; the fix belongs upstream)`);
+    }
   }
 }
 

@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eu
+
+# Electron app staged by apply_extra to /app/extra/app, started as `min`: the
+# vendor's launcher binary, or a symlink to it should upstream rename it.
+# The browser window's class (X11) and app_id (Wayland) are both "min", from
+# the app's own name; the desktop entry's StartupWMClass matches it.
+# zypak-wrapper (from org.electronjs.Electron2.BaseApp) redirects Chromium's
+# SUID sandbox onto the Flatpak sandbox, so web content keeps its renderer
+# sandbox instead of running with --no-sandbox.
+# --ozone-platform-hint=auto uses Wayland when available and falls back to X11.
+# Min keeps its profile (history, bookmarks, settings, password store) under
+# $XDG_CONFIG_HOME/Min, which Flatpak points at
+# ~/.var/app/org.minbrowser.Min/config.
+#
+# Defensively clear ELECTRON_RUN_AS_NODE: if it leaks in from the launching
+# environment (a terminal inside VS Code, for instance), the binary would start
+# as plain Node instead of the GUI app.
+unset ELECTRON_RUN_AS_NODE
+
+# Chromium writes the tray icon and media cover art to files in $TMPDIR and
+# hands the desktop their paths; the sandbox's /tmp is private, so the host
+# can't read them. Point TMPDIR at the per-app runtime dir, which is the same
+# path inside and outside.
+export TMPDIR="${XDG_RUNTIME_DIR}/app/${FLATPAK_ID}"
+
+# The built-in password manager encrypts its store with Electron safeStorage.
+# Chromium picks the keyring backend from XDG_CURRENT_DESKTOP; on a desktop it
+# does not recognise (Hyprland, Sway, ...) it falls back to plain-text storage
+# and safeStorage reports encryption as unavailable, so saving a password
+# fails. Point it at the Secret Service there. KDE is left alone so Chromium
+# keeps choosing KWallet, and an explicit --password-store on the command line
+# wins.
+store=
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+  *:KDE:*) ;;
+  *)
+    case " $* " in
+      *" --password-store="*) ;;
+      *) store=--password-store=gnome-libsecret ;;
+    esac
+    ;;
+esac
+
+exec zypak-wrapper /app/extra/app/min --ozone-platform-hint=auto ${store:+"$store"} "$@"

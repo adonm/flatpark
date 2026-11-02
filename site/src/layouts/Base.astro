@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Footer from '../components/Footer.astro';
+import { jsonForScript } from '../lib/json-script.mjs';
 import en from '../i18n/locales/en.json';
 import { defaultLang, getLangFromUrl, languages, localizePath, locales, sectionLabel, stripLang, useTranslations } from '../i18n';
 const { title, description, image, ogType = 'website' } = Astro.props;
@@ -29,6 +30,7 @@ const xDefault = Astro.site ? new URL(localizePath(basePath, defaultLang), Astro
 // The search ones keep their `{n}` / `{q}` placeholders: only the client knows
 // what to put there, since the numbers exist only once a query has been typed.
 const clientStrings = {
+  copy: t('action.copy'),
   copied: t('action.copied'),
   copiedInstall: t('action.copied_install'),
   copyFailed: t('action.copy_failed'),
@@ -99,8 +101,8 @@ const searchMeta = {
     <slot />
     <Footer />
 
-    <script type="application/json" data-i18n set:html={JSON.stringify(clientStrings)}></script>
-    <script type="application/json" data-search-meta set:html={JSON.stringify(searchMeta)}></script>
+    <script type="application/json" data-i18n set:html={jsonForScript(clientStrings)}></script>
+    <script type="application/json" data-search-meta set:html={jsonForScript(searchMeta)}></script>
 
     <script>
       import { initSearch } from '../scripts/search.js';
@@ -112,6 +114,7 @@ const searchMeta = {
       // missing blob degrades to the pre-i18n behaviour instead of blanking.
       const S = (() => {
         const defaults = {
+          copy: 'Copy',
           copied: 'Copied',
           copiedInstall: 'Copied!',
           copyFailed: 'Copy failed',
@@ -151,6 +154,8 @@ const searchMeta = {
       const grid = document.querySelector('[data-grid]');
       const empty = document.querySelector('[data-empty]');
       let activeSection = '';
+      // Home page's Approved tab: show only developer-approved (blue shield) cards.
+      let approvedOnly = false;
 
       // Card fold (home page only — the button is what turns it on). The cap is
       // counted in rows rather than cards so the fold lands on a clean edge at
@@ -171,6 +176,11 @@ const searchMeta = {
       // of whatever sort is active.
       function fold(shown) {
         if (!moreBtn || !grid) return;
+        // The Collections tab hides the grid, and its fold button with it.
+        if (grid.hidden) {
+          moreBtn.hidden = true;
+          return;
+        }
         foldCols = columns();
         const limit = foldCols * foldRows;
         shown.forEach((card, i) => {
@@ -182,7 +192,9 @@ const searchMeta = {
       function apply() {
         const shown = [];
         for (const card of cards) {
-          const show = !activeSection || card.dataset.section === activeSection;
+          const show =
+            (!activeSection || card.dataset.section === activeSection) &&
+            (!approvedOnly || card.dataset.approved === '1');
           card.hidden = !show;
           if (show) shown.push(card);
         }
@@ -239,15 +251,19 @@ const searchMeta = {
         if (urlSection()) selectFromUrl();
       }
 
-      // Sort dropdown: reorder the grid in place. ISO dates sort as text.
-      const sortSel = document.querySelector('[data-sort]');
-      sortSel?.addEventListener('change', () => {
-        const mode = sortSel.value;
+      // Sort: reorder the grid in place. ISO dates sort as text. The browse
+      // page drives it from a dropdown, the home page from Flathub-style tabs.
+      function sortCards(mode) {
         const sorted = cards.slice().sort((a, b) => {
           if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
           if (mode === 'updated') return (b.dataset.updated || '').localeCompare(a.dataset.updated || '');
           // added: newest listing first — when *we* shipped it, not when upstream released
           if (mode === 'added') return (b.dataset.added || '').localeCompare(a.dataset.added || '');
+          // popular: most new installs in the last 30 days, then name
+          if (mode === 'popular') {
+            const d = Number(b.dataset.popular || 0) - Number(a.dataset.popular || 0);
+            return d || (a.dataset.name || '').localeCompare(b.dataset.name || '');
+          }
           // approved: developer-approved (blue shield) first, then name
           const f = (b.dataset.approved === '1' ? 1 : 0) - (a.dataset.approved === '1' ? 1 : 0);
           return f || (a.dataset.name || '').localeCompare(b.dataset.name || '');
@@ -257,7 +273,34 @@ const searchMeta = {
         // and a stale order would fold away the wrong ones after a re-sort.
         cards.splice(0, cards.length, ...sorted);
         apply();
-      });
+      }
+
+      const sortSel = document.querySelector('[data-sort]');
+      sortSel?.addEventListener('change', () => sortCards(sortSel.value));
+
+      const sortTabs = Array.from(document.querySelectorAll('[data-sort-tab]'));
+      const collectionsPanel = document.querySelector<HTMLElement>('[data-collections-panel]');
+      for (const tab of sortTabs) {
+        tab.addEventListener('click', () => {
+          for (const t of sortTabs) {
+            t.classList.toggle('is-active', t === tab);
+            t.setAttribute('aria-selected', String(t === tab));
+          }
+          // Collections is a view, not an order: it swaps the grid for the
+          // collection rows and leaves the cards' order alone.
+          const showCollections = tab.dataset.sortTab === 'collections';
+          if (collectionsPanel) collectionsPanel.hidden = !showCollections;
+          if (grid) grid.hidden = showCollections;
+          if (showCollections) {
+            apply();
+            return;
+          }
+          // A new order starts over from the first five rows.
+          foldRows = FOLD_ROWS;
+          approvedOnly = tab.dataset.sortTab === 'approved';
+          sortCards(tab.dataset.sortTab);
+        });
+      }
 
       // Featured carousel: stop rotation on interaction or reduced motion.
       for (const car of document.querySelectorAll<HTMLElement>('[data-fcarousel]')) {
@@ -296,6 +339,21 @@ const searchMeta = {
         }
       }
 
+      // Docs code blocks get a copy button: wrap each <pre> so the button sits
+      // in its corner without scrolling away with long lines.
+      for (const pre of document.querySelectorAll<HTMLElement>('.prose pre')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'code-block';
+        pre.replaceWith(wrap);
+        wrap.append(pre);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'code-copy';
+        button.textContent = S.copy;
+        button.dataset.copy = (pre.textContent || '').replace(/\n$/, '');
+        wrap.append(button);
+      }
+
       for (const button of document.querySelectorAll('[data-copy]')) {
         button.addEventListener('click', async (e) => {
           e.preventDefault();
@@ -313,24 +371,6 @@ const searchMeta = {
       }
 
       apply();
-
-      // Scope tabs (setup page; no-ops elsewhere): switch which command panel
-      // shows. Tabs carry data-tab, panels carry the matching data-panel.
-      for (const tabs of document.querySelectorAll('[data-tabs]')) {
-        const buttons = Array.from(tabs.querySelectorAll('[data-tab]'));
-        const panels = Array.from(tabs.querySelectorAll('[data-panel]'));
-        for (const button of buttons) {
-          button.addEventListener('click', () => {
-            const id = button.dataset.tab;
-            for (const b of buttons) {
-              const on = b === button;
-              b.classList.toggle('is-active', on);
-              b.setAttribute('aria-selected', String(on));
-            }
-            for (const p of panels) p.hidden = p.dataset.panel !== id;
-          });
-        }
-      }
 
       // Screenshot carousel: one slide at a time, dots below to switch. Drop any
       // slide whose hotlinked image fails so the page never shows a broken icon.
@@ -453,10 +493,12 @@ const searchMeta = {
           }
         });
       }
+      // Only the detail page's split button has a menu; the collection page's
+      // plain install button reuses the copy + hint above.
       const installRoot = document.querySelector('[data-install]');
-      if (installRoot) {
+      const menu = installRoot?.querySelector('[data-install-menu]');
+      if (installRoot && menu) {
         const toggle = installRoot.querySelector('[data-install-toggle]');
-        const menu = installRoot.querySelector('[data-install-menu]');
         const hint = installRoot.querySelector('[data-install-hint]');
         toggle?.addEventListener('click', (e) => {
           e.stopPropagation();

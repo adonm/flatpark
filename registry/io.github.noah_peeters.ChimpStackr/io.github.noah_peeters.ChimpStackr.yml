@@ -53,9 +53,9 @@ modules:
         filename: chimpstackr.AppImage
         only-arches:
           - x86_64
-        url: https://github.com/noah-peeters/ChimpStackr/releases/download/v0.3.5/ChimpStackr-Linux-x86_64.AppImage
-        sha256: c6d9d7802c35b861c41e9bc395570a0c7f443e98283920742f3be34181fe4438
-        size: 299787456
+        url: https://github.com/noah-peeters/ChimpStackr/releases/download/v0.4.1/ChimpStackr-Linux-x86_64.AppImage
+        sha256: 8c9568f5c4908ece4a24be6a3e168e3548b4b998ff3511c24532af5ad8c5f6e2
+        size: 290149568
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

@@ -71,12 +71,19 @@ modules:
     sources:
       # BEGIN MANAGED EXTRA-DATA
       - type: extra-data
-        filename: zcode-amd64.deb
+        filename: zcode.deb
         only-arches:
           - x86_64
-        url: https://cdn-zcode.z.ai/zcode/electron/releases/3.14.4/linux-x64/ZCode-3.14.4-linux-x64.deb
-        sha256: d753618845e5e057c29ccbc3917c08a4c8d99355deef7d6a0f4d2916ba69e4be
-        size: 162061444
+        url: https://cdn-zcode.z.ai/zcode/electron/releases/3.16.3/linux-x64/ZCode-3.16.3-linux-x64.deb
+        sha256: 128132b195977fd0a8c8a6c295cf42fe159222d7a5c5efefd8b5f00ef88ab8b6
+        size: 173383784
+      - type: extra-data
+        filename: zcode.deb
+        only-arches:
+          - aarch64
+        url: https://cdn-zcode.z.ai/zcode/electron/releases/3.16.3/linux-arm64/ZCode-3.16.3-linux-arm64.deb
+        sha256: 338e91013125ee49f665f1dc3a07af09518b05f53f9a5a359de4572009c660e2
+        size: 166539948
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

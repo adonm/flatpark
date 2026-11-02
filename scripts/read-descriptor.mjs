@@ -5,8 +5,9 @@
 //
 // This is NOT a general YAML parser: the descriptor schema is small and
 // controlled, so we extract exactly the known paths (id, name, summary,
-// website, source_url, build.{manifest,branch,mode}, catalog.{category,tags},
-// update.command). Keeping it dependency-free means the core bash pipeline only
+// website, source_url, build.{manifest,branch,mode,arches},
+// catalog.{category,tags},
+// update.{command,auto}). Keeping it dependency-free means the core bash pipeline only
 // needs `node`, not an npm install.
 import { readFileSync } from 'node:fs';
 
@@ -32,9 +33,23 @@ function unquote(v) {
   return v;
 }
 
+// The architectures FlatPark builds and publishes. build.arches is an opt-in:
+// an app ships x86_64 only until its descriptor lists aarch64 too, which is
+// the same promise as Flathub's only-arches in flathub.json.
+const KNOWN_ARCHES = ['x86_64', 'aarch64'];
+
 const d = { tags: [] };
 let section = null; // current top-level block key (build / catalog / ...)
 let inTags = false; // collecting catalog.tags block-list items
+let inArches = false; // collecting build.arches block-list items
+
+// `[a, b]` or `a` -> list; '' -> null (a block list follows).
+function listValue(v) {
+  const t = v.trim();
+  if (t === '') return null;
+  if (t === '[]') return [];
+  return t.replace(/^\[|\]$/g, '').split(',').map(unquote).filter(Boolean);
+}
 
 function topScalar(key, val) {
   if (key === 'id') d.id = val;
@@ -52,6 +67,7 @@ for (const raw of text.split('\n')) {
 
   if (indent === 0) {
     inTags = false;
+    inArches = false;
     const m = s.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
     if (!m) { section = null; continue; }
     const [, key, val] = m;
@@ -62,14 +78,20 @@ for (const raw of text.split('\n')) {
 
   if (s.startsWith('- ')) {
     if (section === 'catalog' && inTags) d.tags.push(unquote(s.slice(2)));
+    else if (section === 'build' && inArches) d.arches.push(unquote(s.slice(2)));
     continue;
   }
 
   const m = s.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
   if (!m) continue;
   const [, key, val] = m;
+  inArches = false;
   if (section === 'build') {
-    if (key === 'manifest') d.manifest = unquote(val);
+    if (key === 'arches') {
+      const list = listValue(val);
+      d.arches = list || [];
+      inArches = list === null;
+    } else if (key === 'manifest') d.manifest = unquote(val);
     else if (key === 'branch') d.branch = unquote(val);
     else if (key === 'mode') d.mode = unquote(val);
   } else if (section === 'catalog') {
@@ -85,6 +107,7 @@ for (const raw of text.split('\n')) {
     }
   } else if (section === 'update') {
     if (key === 'command') d.update_command = unquote(val);
+    else if (key === 'auto') d.update_auto = unquote(val);
   }
   // maintainer / policy blocks are not needed by the build pipeline.
 }
@@ -101,6 +124,21 @@ required(d.name, 'name');
 required(d.summary, 'summary');
 required(d.manifest, 'build.manifest');
 
+let arches = ['x86_64'];
+if (d.arches) {
+  if (!d.arches.length) {
+    process.stderr.write(`descriptor ${file}: build.arches is empty\n`);
+    process.exit(1);
+  }
+  const unknown = d.arches.filter((a) => !KNOWN_ARCHES.includes(a));
+  if (unknown.length) {
+    process.stderr.write(`descriptor ${file}: unknown build.arches ${unknown.join(', ')} (known: ${KNOWN_ARCHES.join(', ')})\n`);
+    process.exit(1);
+  }
+  // Canonical order and no duplicates, so consumers can compare strings.
+  arches = KNOWN_ARCHES.filter((a) => d.arches.includes(a));
+}
+
 function sq(v) {
   return "'" + String(v == null ? '' : v).replace(/'/g, "'\\''") + "'";
 }
@@ -112,10 +150,12 @@ const out = [
   `_FP_BRANCH=${sq(d.branch || '')}`,
   `_FP_MANIFEST=${sq(d.manifest)}`,
   `_FP_MODE=${sq(d.mode || '')}`,
+  `_FP_ARCHES=${sq(arches.join(' '))}`,
   `_FP_CATEGORY=${sq(d.category || '')}`,
   `_FP_TAGS=${sq((d.tags || []).join(', '))}`,
   `_FP_WEBSITE=${sq(d.website || '')}`,
   `_FP_SOURCE_URL=${sq(d.source_url || '')}`,
   `_FP_UPDATE_COMMAND=${sq(d.update_command || '')}`,
+  `_FP_UPDATE_AUTO=${sq(d.update_auto === 'false' ? 'false' : 'true')}`,
 ].join('\n');
 process.stdout.write(out + '\n');

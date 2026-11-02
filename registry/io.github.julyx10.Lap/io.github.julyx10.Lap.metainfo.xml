@@ -54,23 +54,18 @@
   <launchable type="desktop-id">io.github.julyx10.Lap.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/julyx10/lap/main/docs/public/screenshots/Lap_0.3.0_main_1.png</image>
-      <caption>The library grid, with star ratings and the image information panel</caption>
+      <image>https://raw.githubusercontent.com/julyx10/lap/v0.3.2/docs/public/screenshots/lap_library.png</image>
+      <caption>The local photo library</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/julyx10/lap/main/docs/public/screenshots/lap-search.png</image>
-      <caption>Searching the library with a local AI text prompt</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://raw.githubusercontent.com/julyx10/lap/main/docs/public/screenshots/lap_map_view.png</image>
+      <image>https://raw.githubusercontent.com/julyx10/lap/v0.3.2/docs/public/screenshots/lap_map_view.png</image>
       <caption>Geotagged photos on the map</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://raw.githubusercontent.com/julyx10/lap/main/docs/public/screenshots/Lap_0.3.0_view_1.png</image>
-      <caption>Comparing four shots side by side with synchronised zoom</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.3.3" date="2026-10-12">
+      <description></description>
+    </release>
     <release version="0.3.2" date="2026-09-12">
       <description></description>
     </release>

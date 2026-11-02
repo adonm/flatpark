@@ -6,6 +6,7 @@ build:
   manifest: com.google.AntigravityIDE.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: AI
   tags:
@@ -16,6 +17,5 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: true
-  extra_data_first: true
   dangerous_permissions:
     - --filesystem=home

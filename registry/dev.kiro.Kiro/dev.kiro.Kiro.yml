@@ -1,0 +1,88 @@
+id: dev.kiro.Kiro
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+# Electron app: use the Electron base app, which ships zypak. zypak redirects
+# Chromium's SUID sandbox onto the Flatpak sandbox, so Kiro keeps Chromium's
+# internal sandbox instead of launching with --no-sandbox. The base is a
+# prebuilt ref merged in at build time; the official upstream application tree
+# is fetched as extra-data and left unmodified.
+base: org.electronjs.Electron2.BaseApp
+base-version: "26.08"
+command: kiro
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # VS Code-derived editor. The prebuilt tree bundles Chromium, its ffmpeg and
+  # swiftshader libraries, the Node-based extension host and every bundled
+  # extension; the GTK3, NSS, ATK, CUPS, DRM/GBM, ALSA and X11 stacks come from
+  # org.freedesktop.Platform 26.08.
+  - --share=ipc
+  # Model requests, sign-in, the extension marketplace and update checks.
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Chromium compositing for the editor, diff views and agent panel.
+  - --device=dri
+  # Editor sounds: the terminal bell and the accessibility signals that announce
+  # a finished agent run.
+  - --socket=pulseaudio
+  # Desktop notifications from the editor and its extensions.
+  - --talk-name=org.freedesktop.Notifications
+  # Sign-in tokens and extension credentials go to the system keyring when one
+  # is available; without this every launch starts signed out.
+  - --talk-name=org.freedesktop.secrets
+  # An IDE is pointed at existing source trees, and it holds its own extensions,
+  # CLI state and agent rules in a hardcoded ~/.kiro. Both need the real home:
+  # Flatpak redirects only the XDG dirs, and a project reached through the
+  # file-chooser portal is not at the path the integrated terminal, the agent
+  # and git would have to agree on. Declared in flatpark.yml
+  # policy.dangerous_permissions.
+  - --filesystem=home
+  # Strip a leaked ELECTRON_RUN_AS_NODE from the sandbox env so the editor, and
+  # zypak's spawned child/zygote processes, which the wrapper's own `unset`
+  # cannot reach, never start as plain Node.
+  - --unset-env=ELECTRON_RUN_AS_NODE
+modules:
+  - name: kiro
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 kiro-wrapper /app/bin/kiro
+      - install -Dm644 dev.kiro.Kiro.desktop /app/share/applications/dev.kiro.Kiro.desktop
+      - install -Dm644 dev.kiro.Kiro.url-handler.desktop /app/share/applications/dev.kiro.Kiro.url-handler.desktop
+      - install -Dm644 dev.kiro.Kiro.metainfo.xml /app/share/metainfo/dev.kiro.Kiro.metainfo.xml
+      - install -Dm644 dev.kiro.Kiro.xml /app/share/mime/packages/dev.kiro.Kiro.xml
+      - install -Dm644 dev.kiro.Kiro.png /app/share/icons/hicolor/512x512/apps/dev.kiro.Kiro.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: kiro.deb
+        only-arches:
+          - x86_64
+        url: https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/1.4.62/deb/kiro-ide-1.4.62-stable-linux-x64.deb
+        sha256: 447bbebe12b2d02c84bbbb3cc071c9a0d0e527593c65d5e12096be07bdcf60a2
+        size: 199281572
+      - type: extra-data
+        filename: kiro.deb
+        only-arches:
+          - aarch64
+        url: https://prod.download.desktop.kiro.dev/releases/stable/linux-arm64/signed/1.4.62/deb/kiro-ide-1.4.62-stable-linux-arm64.deb
+        sha256: 6bce5f4cbafce654b800dbb14c5d6b8b2055b3a2b272d96c86a0139f6dfd1ba0
+        size: 190432364
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: kiro-wrapper
+      - type: file
+        path: dev.kiro.Kiro.desktop
+      - type: file
+        path: dev.kiro.Kiro.url-handler.desktop
+      - type: file
+        path: dev.kiro.Kiro.metainfo.xml
+      - type: file
+        path: dev.kiro.Kiro.xml
+      - type: file
+        path: dev.kiro.Kiro.png

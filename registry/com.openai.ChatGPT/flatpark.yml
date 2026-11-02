@@ -7,6 +7,7 @@ build:
   manifest: com.openai.ChatGPT.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: AI
   tags:
@@ -19,6 +20,13 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: true
-  extra_data_first: true
   dangerous_permissions:
     - --talk-name=org.freedesktop.Flatpak
+
+# What this package does around the vendor's build; shown on the site as the
+# packaging level. See docs/packagers/playbook.md (golden rule 1).
+packaging:
+  - kind: host-command
+    detail:
+      en: "git runs on your system through flatpak-spawn, including your hooks, aliases and core.sshCommand, so what the agent does with git happens outside the sandbox."
+      zh-Hans: "git 通过 flatpak-spawn 在你的系统上运行，包括你的 hooks、别名和 core.sshCommand，所以智能体用 git 做的事发生在沙箱之外。"

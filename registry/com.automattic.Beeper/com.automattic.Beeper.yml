@@ -1,0 +1,109 @@
+id: com.automattic.Beeper
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+# Electron app: layer in the Electron base app, which ships zypak. zypak
+# redirects Chromium's SUID sandbox onto the Flatpak sandbox so the app keeps an
+# internal sandbox (the wrapper runs it via zypak-wrapper). The payload itself
+# is still the vendor's own release, fetched as extra-data.
+base: org.electronjs.Electron2.BaseApp
+base-version: "26.08"
+command: beeper
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Electron (Chromium) chat client. Upstream ships its Linux build as an
+  # electron-builder AppImage; this repackages the AppDir inside it unmodified.
+  # The bundle carries Chromium, its own ffmpeg/SwiftShader/Vulkan loader and
+  # prebuilt native node modules; the GTK3, NSS, ALSA, dbus, gbm and X11 stacks
+  # they link come from the runtime. The only unresolved links in the AppDir
+  # are musl builds of two node modules (glibc's are loaded) and the legacy
+  # appindicator/gconf libraries the AppImage carries for older hosts, which
+  # Electron's own StatusNotifier tray does not use.
+  - --share=ipc
+  # The whole app: Beeper's servers and the chat networks it bridges.
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # GPU-accelerated rendering.
+  - --device=dri
+  # Playing voice messages and video attachments, and recording voice messages.
+  - --socket=pulseaudio
+  # Saving attachments without a dialog. Attaching files and saving elsewhere
+  # go through the file-chooser portal and need no grant of their own.
+  - --filesystem=xdg-download
+  # Message notifications.
+  - --talk-name=org.freedesktop.Notifications
+  # Tray icon with the unread badge.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Electron's safeStorage keeps the session and the encryption keys in the
+  # desktop keyring (GNOME Keyring / KWallet); without it the login is not
+  # kept securely across restarts.
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.kwalletd5
+  - --talk-name=org.kde.kwalletd6
+  # Cursor theme from the host, so the pointer matches the desktop under X11.
+  - --env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons
+  # Not granted by default — the app works without them; opt in per the metainfo:
+  #   --device=all  -> webcam for in-app photo capture
+  # Strip a leaked ELECTRON_RUN_AS_NODE from the sandbox env so the binary — and
+  # zypak's spawned zygote children, which the wrapper's own `unset` cannot
+  # reach — always start as the GUI app rather than as plain Node.
+  - --unset-env=ELECTRON_RUN_AS_NODE
+modules:
+  - name: beeper
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 beeper-wrapper /app/bin/beeper
+      - install -Dm644 com.automattic.Beeper.desktop /app/share/applications/com.automattic.Beeper.desktop
+      - install -Dm644 com.automattic.Beeper.metainfo.xml /app/share/metainfo/com.automattic.Beeper.metainfo.xml
+      - install -Dm644 com.automattic.Beeper.png /app/share/icons/hicolor/512x512/apps/com.automattic.Beeper.png
+    sources:
+      # The offline AppImage extractor (appimage-offset + unsquashfs) from
+      # https://github.com/flatpark/prebuilt. A second extra-data source rather
+      # than an archive module, because apply_extra runs in a sandbox that binds
+      # only the runtime /usr and /app/extra. Kept OUTSIDE the managed block:
+      # update-pins.mjs rebuilds that block from the resolver output and would
+      # drop anything else in it.
+      - type: extra-data
+        filename: appimage-tools.tar.xz
+        only-arches:
+          - x86_64
+        url: https://github.com/flatpark/prebuilt/releases/download/appimage-tools-v3/appimage-tools-appimage-tools-v3-fd-26.08-x86_64.tar.xz
+        sha256: 2ad7847e871c2f7f24506ecf202ea971ab684aaa457e2f6a594f6bfac96f1297
+        size: 57508
+      - type: extra-data
+        filename: appimage-tools.tar.xz
+        only-arches:
+          - aarch64
+        url: https://github.com/flatpark/prebuilt/releases/download/appimage-tools-v3/appimage-tools-appimage-tools-v3-fd-26.08-aarch64.tar.xz
+        sha256: 96fbb5d8b79c53954bad1e2760efd34ab9267b9e6783b7c60930214e44cf7e18
+        size: 51796
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: beeper.AppImage
+        only-arches:
+          - x86_64
+        url: https://beeper-desktop.download.beeper.com/builds/Beeper-4.3.264-x86_64.AppImage
+        sha256: 399ee4cd2b5e20b0d7d95039448190a98b6998a75648540149c4e5dbcce30551
+        size: 296039196
+      - type: extra-data
+        filename: beeper.AppImage
+        only-arches:
+          - aarch64
+        url: https://beeper-desktop.download.beeper.com/builds/Beeper-4.3.264-arm64.AppImage
+        sha256: ff5e22754b9c6af01b446f5e4e656ffeaf5fefeb37e46939a423065f897d3548
+        size: 297639337
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: beeper-wrapper
+      - type: file
+        path: com.automattic.Beeper.desktop
+      - type: file
+        path: com.automattic.Beeper.metainfo.xml
+      - type: file
+        path: com.automattic.Beeper.png

@@ -101,4 +101,43 @@ if command -v appstreamcli >/dev/null 2>&1; then
     || { echo "FAIL: metainfo does not validate after the update"; exit 1; }
 fi
 
+# 6) per-arch payloads share a filename; `arch` picks the pin. Adding an aarch64
+#    source next to an existing x86_64 pin creates a new record scoped to it and,
+#    with no version anchor, leaves the unchanged x86_64 pin alone.
+mk_manifest "file://$tmp/old.bin" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+run "$(printf '{"sources":[{"filename":"app.bin","arch":"x86_64","url":"file://%s/old.bin"},{"filename":"app.bin","arch":"aarch64","url":"file://%s/new.bin"}]}' "$tmp" "$tmp")"
+assert_eq "$RC" "0"
+assert_eq "$(grep -c 'filename: app.bin' "$tmp/manifest.yml")" "2"
+arm_block="$(awk '/- aarch64/{f=1} f' "$tmp/manifest.yml")"
+case "$arm_block" in *"sha256: $new_sha"*) ;; *) echo "FAIL: aarch64 pin missing"; exit 1 ;; esac
+x86_block="$(awk '/- x86_64/{f=1} /- aarch64/{f=0} f' "$tmp/manifest.yml")"
+case "$x86_block" in *"sha256: $old_sha"*) ;; *) echo "FAIL: x86_64 pin changed"; exit 1 ;; esac
+
+# 7) once a filename is pinned for two arches, a source without `arch` is
+#    ambiguous and must fail rather than cross-pin.
+run "$(printf '{"version":"9.0","sources":[{"filename":"app.bin","url":"file://%s/new.bin"}]}' "$tmp")"
+assert_eq "$RC" "1"
+
+# 8) same version, but upstream re-uploaded the payload in place: a source that
+#    reports its size re-pins when the size drifts, adds no <release>, and is a
+#    no-op once the pin matches again. Without `size` the version gate holds.
+cp "$tmp/new.bin" "$tmp/recut.bin"
+mk_manifest "file://$tmp/recut.bin" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin"}]}' "$tmp")"
+assert_eq "$RC" "10"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "sha256: $new_sha"
+assert_contains "$tmp/manifest.yml" "size: $new_size"
+assert_eq "$(grep -c '<release ' "$tmp/app.metainfo.xml")" "1"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "10"
+
+# 9) same version, same size, but the source moved to another URL -> re-pinned.
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/new.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "url: file://$tmp/new.bin"
+
 echo "test_update_pins: PASS"

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.bherbruck.SolidCraft</id>
+  <name>SolidCraft</name>
+  <summary>Parametric 3D CAD in the style of Fusion</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <developer id="io.github.bherbruck">
+    <name>SolidCraft contributors</name>
+  </developer>
+  <url type="homepage">https://solidcraft.io</url>
+  <url type="bugtracker">https://github.com/tangency-labs/solidcraft/issues</url>
+  <url type="vcs-browser">https://github.com/tangency-labs/solidcraft</url>
+  <description>
+    <p>This is a community package of SolidCraft, maintained independently and unaffiliated with the SolidCraft project. It repackages the official upstream Linux release build unmodified.</p>
+    <p>SolidCraft is an open-source parametric 3D CAD application written in Rust. Sketch on a plane, constrain and dimension the sketch, turn profiles into solids on a feature timeline, and change a parameter to watch the timeline rebuild.</p>
+    <ul>
+      <li>Sketches with a constraint solver and parameter-driven dimensions</li>
+      <li>Extrude, revolve, sweep, loft, fillet, chamfer, shell, holes and patterns</li>
+      <li>Components and joints, sheet metal, and a plastic-enclosure subset</li>
+      <li>STEP and IGES import and export; 3MF, STL and OBJ</li>
+      <li>Every action is a command, scriptable from a CLI, a JSON control channel and an MCP server</li>
+    </ul>
+    <p>The headless command runner and MCP server is included: <code>flatpak run --command=solidcraft-cli io.github.bherbruck.SolidCraft --help</code></p>
+    <p>Permissions: this package uses the same sandbox as upstream's own Flatpak manifest: display (Wayland, with X11 as a fallback), the GPU device, and the Documents folder. It also grants the spacenavd socket (/run/spnav.sock), so a 3D mouse works when spacenavd is running. Files anywhere else are opened and saved through the system file chooser. No network access is granted.</p>
+    <p>Optional overrides:</p>
+    <ul>
+      <li>Let agents on the host reach the <code>--control</code> automation server: <code>flatpak override --user --share=network io.github.bherbruck.SolidCraft</code></li>
+      <li>Open files by path anywhere in your home folder: <code>flatpak override --user --filesystem=home io.github.bherbruck.SolidCraft</code></li>
+    </ul>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <caption>A sample part with its sketches and feature timeline</caption>
+      <image>https://raw.githubusercontent.com/tangency-labs/solidcraft/main/docs/screenshots/sample-plate.png</image>
+    </screenshot>
+  </screenshots>
+  <launchable type="desktop-id">io.github.bherbruck.SolidCraft.desktop</launchable>
+  <categories>
+    <category>Graphics</category>
+    <category>3DGraphics</category>
+    <category>Engineering</category>
+  </categories>
+  <keywords>
+    <keyword>CAD</keyword>
+    <keyword>3D</keyword>
+    <keyword>parametric</keyword>
+    <keyword>STEP</keyword>
+    <keyword>STL</keyword>
+  </keywords>
+  <requires>
+    <display_length compare="ge">760</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>solidcraft</binary>
+    <binary>solidcraft-cli</binary>
+    <mediatype>application/x-solidcraft</mediatype>
+  </provides>
+  <releases>
+    <release version="0.29.0" date="2026-11-01">
+      <description></description>
+    </release>
+    <release version="0.28.0" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="0.27.1" date="2026-10-30">
+      <description></description>
+    </release>
+    <release version="0.26.1" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.26.0" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.25.1" date="2026-10-28">
+      <description></description>
+    </release>
+    <release version="0.24.1" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="0.24.0" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="0.23.1" date="2026-10-26">
+      <description></description>
+    </release>
+    <release version="0.23.0" date="2026-10-25">
+      <description></description>
+    </release>
+    <release version="0.22.1" date="2026-10-25">
+      <description></description>
+    </release>
+    <release version="0.22.0" date="2026-10-24">
+      <description></description>
+    </release>
+    <release version="0.21.0" date="2026-10-24">
+      <description></description>
+    </release>
+    <release version="0.20.0" date="2026-10-23">
+      <description></description>
+    </release>
+    <release version="0.19.0" date="2026-10-22">
+      <description></description>
+    </release>
+    <release version="0.18.4" date="2026-10-21">
+      <description></description>
+    </release>
+    <release version="0.18.2" date="2026-10-21">
+      <description></description>
+    </release>
+    <release version="0.17.0" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="0.16.2" date="2026-10-19">
+      <description></description>
+    </release>
+    <release version="0.16.0" date="2026-10-18">
+      <description></description>
+    </release>
+    <release version="0.15.0" date="2026-10-17">
+      <description></description>
+    </release>
+    <release version="0.14.0" date="2026-10-16">
+      <description></description>
+    </release>
+    <release version="0.13.0" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="0.11.1" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.10.0" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.9.0" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.8.0" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.6.0" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.3.2" date="2026-10-12">
+      <description></description>
+    </release>
+    <release version="0.3.1" date="2026-10-11"/>
+  </releases>
+</component>

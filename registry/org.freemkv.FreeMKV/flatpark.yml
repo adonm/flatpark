@@ -7,6 +7,7 @@ build:
   manifest: org.freemkv.FreeMKV.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: AudioVideo
   upstream_approved: true
@@ -20,7 +21,6 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: false
-  extra_data_first: true
   dangerous_permissions:
     # The optical drive is read with raw SG_IO SCSI commands on /dev/sr* and
     # /dev/sg*. Flatpak has no narrower --device for either, and without it the

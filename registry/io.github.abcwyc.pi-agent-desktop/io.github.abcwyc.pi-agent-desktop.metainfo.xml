@@ -59,15 +59,75 @@
   <launchable type="desktop-id">io.github.abcwyc.pi-agent-desktop.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/abcwyc/pi-agent-desktop/main/docs/screenshots/pi-agent-light%402x.png</image>
+      <image>https://raw.githubusercontent.com/abcwyc/pi-agent-desktop/1cabde8059db8f1a9bf262dd04a75e78ebe8c461/docs/screenshots/pi-agent-light.webp</image>
       <caption>A Pi session in the desktop app, light mode</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/abcwyc/pi-agent-desktop/main/docs/screenshots/pi-agent-dark%402x.png</image>
+      <image>https://raw.githubusercontent.com/abcwyc/pi-agent-desktop/1cabde8059db8f1a9bf262dd04a75e78ebe8c461/docs/screenshots/pi-agent-dark.webp</image>
       <caption>A Pi session in the desktop app, dark mode</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.8.0" date="2026-11-01">
+      <description></description>
+    </release>
+    <release version="0.7.10" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="0.7.9" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="0.7.8" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.7.7" date="2026-10-25">
+      <description></description>
+    </release>
+    <release version="0.7.6" date="2026-10-22">
+      <description></description>
+    </release>
+    <release version="0.7.5" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="0.7.4" date="2026-10-18">
+      <description></description>
+    </release>
+    <release version="0.7.2" date="2026-10-16">
+      <description></description>
+    </release>
+    <release version="0.7.3" date="2026-10-17">
+      <description></description>
+    </release>
+    <release version="0.7.2" date="2026-10-16">
+      <description></description>
+    </release>
+    <release version="0.7.1" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="0.7.0" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.6.7" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.6.6" date="2026-10-12">
+      <description></description>
+    </release>
+    <release version="0.6.5" date="2026-10-11">
+      <description></description>
+    </release>
+    <release version="0.6.4" date="2026-10-10">
+      <description></description>
+    </release>
+    <release version="0.6.0" date="2026-10-08">
+      <description></description>
+    </release>
+    <release version="0.5.2" date="2026-10-04">
+      <description></description>
+    </release>
+    <release version="0.4.9" date="2026-10-02">
+      <description></description>
+    </release>
     <release version="0.4.8" date="2026-09-26">
       <description></description>
     </release>

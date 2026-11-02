@@ -101,9 +101,9 @@ modules:
         filename: mark-shot.AppImage
         only-arches:
           - x86_64
-        url: https://github.com/jswysnemc/mark-shot/releases/download/v0.1.54/mark-shot-v0.1.54-linux-x86_64.AppImage
-        sha256: 9732da7f5fbb1ca670bf3dc97cd7c23574cb474d15f91fa615d57ba855781065
-        size: 99625464
+        url: https://github.com/jswysnemc/mark-shot/releases/download/v0.1.62/mark-shot-v0.1.62-linux-x86_64.AppImage
+        sha256: 4e38a860c1ca5df34a7c71ab8b1dd2e5df7840a0c2254cc11c74b3a5d3df6c21
+        size: 100305400
       # END MANAGED EXTRA-DATA
       # Mark Shot copies to the clipboard by handing the image to a small
       # helper that stays alive owning the selection (clipboard_image.cpp:

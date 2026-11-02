@@ -1,0 +1,190 @@
+# Curated app collections: one page each at /collections/<slug>/, a row under
+# the homepage Collections tab (in this order, first four) and on the
+# /collections/ index, and a backlink on every member's detail page. With
+# `carousel: true` a collection also leads the homepage Editor's pick
+# carousel; without it, the tab is its only homepage entry.
+#
+# A collection groups apps that belong together, usually one upstream's suite,
+# so a reader can find and install the set in one place. It is a third axis,
+# independent of the editor's pick (config/featured.yml) and the blue shield:
+# it says "these ship together", not "we recommend these" or "upstream
+# approved this". Members are listed in display order; ids not in the catalog
+# are skipped with a build warning, and a collection left with no listed app
+# renders nothing. An optional `upcoming` list of {name, url} shows apps
+# announced upstream but not released yet, as plain links. A group may carry
+# its own `summary` under its title, and `howto: {label, url}` adds a link to
+# the docs (a site path, localized per locale) under the collection summary.
+# A collection without `upstream` gathers apps from several vendors, so its
+# disclaimer names no single one.
+#
+# Text fields are either a plain string or a per-locale map; a locale without
+# its own text falls back to `en`.
+collections:
+  - slug: artcraft
+    name: ArtCraft
+    carousel: true
+    upstream: https://getartcraft.com/apps
+    summary:
+      en: >-
+        Open-source creative and office apps written in pure Rust, each one
+        following the workflow of a familiar Adobe, Autodesk, Avid, Figma
+        or Microsoft Office app. FlatPark carries every released one, so the
+        whole suite installs from a single remote.
+      zh-Hans: >-
+        一套纯 Rust 编写的开源创作与办公应用，每一个都沿用一款熟悉的 Adobe、
+        Autodesk、Avid、Figma 或 Microsoft Office 软件的工作方式。FlatPark 收录了其中所有
+        已发布的应用，整套都能从同一个源安装。
+    groups:
+      - title:
+          en: Graphics and design
+          zh-Hans: 图形与设计
+        apps:
+          - ai.storyteller.photocraft
+          - ai.storyteller.vectorcraft
+          - ai.storyteller.lightcraft
+          - ai.storyteller.designcraft
+          - ai.storyteller.figcraft
+          - ai.storyteller.texturecraft
+      - title:
+          en: Video and effects
+          zh-Hans: 视频与特效
+        apps:
+          - ai.storyteller.filmcraft
+          - ai.storyteller.effectcraft
+      - title:
+          en: Audio
+          zh-Hans: 音频
+        apps:
+          - ai.storyteller.soundcraft
+      - title:
+          en: CAD and drafting
+          zh-Hans: 计算机辅助设计
+        apps:
+          - ai.storyteller.cadcraft
+      - title:
+          en: Office
+          zh-Hans: 办公
+        apps:
+          - ai.storyteller.wordcraft
+          - ai.storyteller.gridcraft
+          - ai.storyteller.deckcraft
+          - ai.storyteller.pdfcraft
+      - title:
+          en: Developer tools
+          zh-Hans: 开发者工具
+        apps:
+          - ai.storyteller.craft-anything
+  - slug: tunaos
+    name: TunaOS
+    upstream: https://tunaos.org
+    summary:
+      en: >-
+        TunaOS makes container-native Linux desktop tools: Tavern (browse and
+        install Homebrew packages), Compass (a fast, extensible command
+        palette), and Blueshell (a container-native terminal powered by
+        Ghostty, with Toolbox, Distrobox, and Podman integration). Everything
+        is open source and maintained by its own developers.
+      zh-Hans: TunaOS 出品面向容器的 Linux 桌面工具：Tavern（浏览并安装 Homebrew 软件包）、Compass（快速、可扩展的命令面板）和 Blueshell（基于 Ghostty 的容器原生终端，集成 Toolbox、Distrobox 和 Podman）。全部开源，由开发者自己维护。
+    groups:
+      - title:
+          en: Apps
+          zh-Hans: 应用
+        apps:
+          - org.tunaos.tavern
+          - org.tunaos.compass
+          - org.tunaos.blueshell
+  - slug: ely-office
+    name: Ely Office
+    upstream: https://office.elygpui.com
+    summary:
+      en: >-
+        Offline-first desktop apps written in Rust with GPUI: a word processor,
+        spreadsheet and presentation editor built on LibreOfficeKit, a PDF
+        editor with OCR, a Git client, a Markdown editor and a mail client.
+        Files stay in your folders; there is no Ely account and no cloud
+        service. FlatPark carries every released app, each installed from the
+        developer's own .deb.
+      zh-Hans: >-
+        一套用 Rust 和 GPUI 编写、离线优先的桌面应用：基于 LibreOfficeKit 的文字处理、
+        电子表格和演示文稿，带 OCR 的 PDF 编辑器，Git 客户端、Markdown 编辑器和邮件客户端。文件留在你自己的文件夹里，
+        不需要 Ely 账号，也没有云服务。FlatPark 收录了其中所有已发布的应用，每个都从开发者自己的 .deb 安装。
+    groups:
+      - title:
+          en: Office
+          zh-Hans: 办公
+        apps:
+          - ely.zacharyzhang.office.doc
+          - ely.zacharyzhang.office.table
+          - ely.zacharyzhang.office.show
+          - ely.zacharyzhang.office.pdf
+      - title:
+          en: Writing and code
+          zh-Hans: 写作与代码
+        apps:
+          - ely.zacharyzhang.office.mark
+          - ely.zacharyzhang.office.tree
+      - title:
+          en: Mail
+          zh-Hans: 邮件
+        apps:
+          - ely.zacharyzhang.office.mail
+    upcoming:
+      - name: ElyAgent
+        url: https://office.elygpui.com
+  - slug: tangency-labs
+    name: Tangency Labs
+    upstream: https://github.com/tangency-labs
+    summary:
+      en: >-
+        Open-source engineering apps built from scratch in pure Rust:
+        SolidCraft, a parametric 3D CAD application, and FieldCraft, one
+        modeler for structures, heat and fluids with its own meshing and
+        solvers. Both are scriptable from a CLI and an MCP server, and FlatPark
+        installs each from the developers' own Linux release.
+      zh-Hans: >-
+        一套从零用纯 Rust 编写的开源工程应用：参数化 3D CAD 软件 SolidCraft，以及集结构、
+        传热与流体于一体、自带网格划分和求解器的建模工具 FieldCraft。两者都能通过 CLI 和
+        MCP 服务器脚本化操作，FlatPark 直接从开发者自己的 Linux 发行包安装。
+    groups:
+      - title:
+          en: Engineering
+          zh-Hans: 工程
+        apps:
+          - io.github.bherbruck.SolidCraft
+          - io.github.jyviko.fieldcraft
+    upcoming:
+      - name: PCBCraft
+        url: https://github.com/tangency-labs/pcbcraft
+  - slug: wine-apps
+    name: Wine Apps
+    summary:
+      en: >-
+        Windows apps packaged for Linux, each running its vendor's unmodified
+        installer under Wine. They share one Wine install, org.winehq.Wine from
+        Flathub, and each keeps its own prefix.
+      zh-Hans: >-
+        打包成 Linux 应用的 Windows 程序，每个都在 Wine 里运行厂商原版、未经修改的安装程序。
+        它们共用 Flathub 上的同一份 Wine（org.winehq.Wine），各自使用独立的前缀。
+    howto:
+      label:
+        en: How to package a Windows app with Wine
+        zh-Hans: 如何打包 Wine 应用
+      url: /docs/packagers/solutions/by-stack/#windows-apps-wine
+    groups:
+      - title:
+          en: Manager
+          zh-Hans: 管理工具
+        summary:
+          en: >-
+            Cellar manages Wine prefixes and the Windows programs in them, with
+            a GUI and a CLI. Every app below is launched by it.
+          zh-Hans: >-
+            Cellar 用来管理 Wine 前缀和其中的 Windows 程序，有图形界面也有命令行。下面每个应用都由它启动。
+        apps:
+          - org.flatpark.Cellar
+      - title:
+          en: Apps
+          zh-Hans: 应用
+        apps:
+          - com.foobar2000.Foobar2000
+          - com.analog.LTspice

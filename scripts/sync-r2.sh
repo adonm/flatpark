@@ -9,11 +9,13 @@
 # (see prune-and-reclaim.sh and drop-dangling-refs.sh).
 #
 # The uploads are additive on purpose (copy, not sync), so deletions only ever
-# happen through those two explicit lists — never as a mirror side effect.
+# happen through those two explicit lists — never as a mirror side effect. The
+# one exception is summaries/, which PRUNE_SUMMARIES=1 (delist-prune only)
+# mirrors to the set the freshly written summary.idx references.
 #
 # rclone must have an R2 (S3) remote configured; in CI that is done with
 # RCLONE_CONFIG_<REMOTE>_* env vars. Required: R2_BUCKET. Optional: R2_REMOTE
-# (default r2), RECLAIM_LIST, RECLAIM_REFS.
+# (default r2), RECLAIM_LIST, RECLAIM_REFS, PRUNE_SUMMARIES.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$ROOT/scripts/lib/common.sh"
 load_config "$ROOT"
@@ -48,24 +50,44 @@ rclone copy "$repo" "$dest" --max-depth 1 --checksum --header-upload "$MUTABLE" 
 rclone copy "$repo" "$dest" --max-depth 1 --checksum --header-upload "$MUTABLE" "${FLAGS[@]}" \
     --include "summary.idx"
 
+# The summaries upload above is additive, so every publish leaves its
+# <digest>.gz and <history>-<digest>.delta files in R2 (~75 KB each).
+# `flatpak build-update-repo` already trimmed the local summaries/ to exactly
+# what the new summary.idx needs (the current and history digests, plus the
+# deltas into the current one), so with PRUNE_SUMMARIES=1 (delist-prune only)
+# mirror that set now that the idx is live. A client still holding the
+# previous idx is fine: that idx's digest is in the new history and is kept,
+# and a missing delta makes flatpak fall back to it. Skipped unless the local
+# set holds a digested summary, so a missing or empty dir can never wipe R2.
+if [ "${PRUNE_SUMMARIES:-}" = 1 ] && [ -f "$repo/summary.idx" ] \
+    && compgen -G "$repo/summaries/*.gz" >/dev/null; then
+    log "prune summaries/ in $dest to the set summary.idx references"
+    rclone sync "$repo/summaries" "$dest/summaries" --checksum --header-upload "$MUTABLE" "${FLAGS[@]}"
+fi
+
+# The reclaim lists hold repo-relative paths (refs/..., objects/...), which is
+# what --files-from wants against the bucket root. One rclone process deleting
+# in parallel, not one process per key: 7515 sequential deletefile calls took
+# 96 minutes on 2026-10-17. --no-traverse stats each listed key instead of
+# listing the bucket, and a key that is already gone is skipped, not an error.
+# Plain --files-from (not -raw) skips blank lines; no ref or object name holds
+# whitespace or a leading #.
+DELETE_FLAGS=(--no-traverse --checkers=64 --stats=1m --stats-log-level=NOTICE)
+
 if [ -n "${RECLAIM_REFS:-}" ] && [ -s "$RECLAIM_REFS" ]; then
     n="$(wc -l < "$RECLAIM_REFS" | tr -d ' ')"
     log "reclaim: deleting $n stale ref file(s) from $dest"
     # Before the objects below: a ref file R2 still serves must never outlive
     # the commit it points at, or the next publish pulls a dangling ref back.
-    while IFS= read -r ref; do
-        [ -n "$ref" ] || continue
-        rclone deletefile "$dest/$ref" 2>/dev/null || warn "could not delete $ref (already gone?)"
-    done < "$RECLAIM_REFS"
+    rclone delete "$dest" --files-from "$RECLAIM_REFS" "${DELETE_FLAGS[@]}" \
+        || warn "some stale refs could not be deleted"
 fi
 
 if [ -n "${RECLAIM_LIST:-}" ] && [ -s "$RECLAIM_LIST" ]; then
-    n="$(wc -l < "$RECLAIM_LIST")"
+    n="$(wc -l < "$RECLAIM_LIST" | tr -d ' ')"
     log "reclaim: deleting $n orphaned object(s) from $dest"
-    while IFS= read -r obj; do
-        [ -n "$obj" ] || continue
-        rclone deletefile "$dest/$obj" 2>/dev/null || warn "could not delete $obj (already gone?)"
-    done < "$RECLAIM_LIST"
+    rclone delete "$dest" --files-from "$RECLAIM_LIST" "${DELETE_FLAGS[@]}" \
+        || warn "some orphaned objects could not be deleted"
 fi
 
 log "R2 sync complete -> $dest"

@@ -23,6 +23,13 @@ finish-args:
   # Saved server passwords, when the user chooses the system keyring over
   # AeroFTP's own encrypted vault.
   - --talk-name=org.freedesktop.secrets
+  # Since 4.2.0 the .deb identifier is app.aeroftp.AeroFTP. Tauri's
+  # single-instance plugin owns app.aeroftp.AeroFTP.SingleInstance.
+  # This ref stays com.aeroftp.AeroFTP, so Flatpak grants only
+  # com.aeroftp.AeroFTP.* and a RequestName for the new name comes back
+  # ServiceUnknown. The plugin ignores that error (it only stops on
+  # NameTaken), and a second launch starts another window.
+  - --own-name=app.aeroftp.AeroFTP.SingleInstance
   # Local file access. AeroFTP's local pane lists a directory tree directly:
   # get_local_files (src-tauri/src/lib.rs) calls tokio::fs::read_dir on the path
   # the pane points at. The document portal can hand over a file the user picked
@@ -69,9 +76,9 @@ modules:
         filename: aeroftp.deb
         only-arches:
           - x86_64
-        url: https://github.com/axpdev-lab/aeroftp/releases/download/v4.2.0/AeroFTP_4.2.0_amd64.deb
-        sha256: 29a969ba6ccf3637c6ca4b4191a2ceb95be3a23aa9c866e297056fe05ed4c022
-        size: 78300994
+        url: https://github.com/axpdev-lab/aeroftp/releases/download/v4.2.5/AeroFTP_4.2.5_amd64.deb
+        sha256: f6ccad22486466996e085754bfc7d752ed300256e3402195123b075d518f7aa4
+        size: 90308986
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

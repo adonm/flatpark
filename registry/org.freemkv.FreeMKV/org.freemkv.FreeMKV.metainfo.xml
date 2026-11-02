@@ -56,6 +56,33 @@
     <keyword>backup</keyword>
   </keywords>
   <releases>
+    <release version="1.8.8" date="2026-11-01">
+      <description></description>
+    </release>
+    <release version="1.8.7" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="1.8.6" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="1.8.5" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="1.8.4" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="1.8.3" date="2026-10-09">
+      <description></description>
+    </release>
+    <release version="1.8.2" date="2026-10-08">
+      <description></description>
+    </release>
+    <release version="1.8.1" date="2026-10-07">
+      <description></description>
+    </release>
+    <release version="1.8.0" date="2026-10-05">
+      <description></description>
+    </release>
     <release version="1.7.7" date="2026-09-26"/>
   </releases>
 </component>

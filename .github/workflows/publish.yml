@@ -1,7 +1,13 @@
 # Trusted publish: only on push to main (merged PR) or manual dispatch. This is
 # the ONLY workflow that touches the signing key, R2, and Pages. It builds just
-# the changed apps into the authoritative repo pulled from R2, re-signs, and
-# republishes the repo + site with an atomic cutover.
+# the changed apps, one job per arch on a native runner with no secrets, then
+# imports those builds into the authoritative repo pulled from R2, signs them,
+# and republishes the repo + site with an atomic cutover.
+#
+#   plan ──┬─> build (x86_64)  ─┐
+#          └─> build (aarch64) ─┴─> publish
+#
+# An arch with nothing to build gets no matrix leg, so no runner starts for it.
 #
 # Two scopes, decided up front by scripts/publish-scope.sh: a "full" publish
 # does all of that, while a "site" publish — a push whose diff cannot change a
@@ -24,6 +30,7 @@ on:
     paths:
       - "registry/**"
       - "site/**"
+      - "docs/**"
       - "scripts/**"
       - "config/**"
       - ".github/workflows/publish.yml"
@@ -44,36 +51,37 @@ permissions:
   issues: write   # open/close the publish alert (scripts/ci-alert.sh)
 
 jobs:
-  publish:
+  # Decide what this push publishes, before any build starts: the scope (site
+  # only, or the repo too) and which apps each arch has to build. Its own job so
+  # the aarch64 build below can start from the same answer. Reads R2 (the
+  # .published-sha marker and whether a summary exists) but writes nothing.
+  plan:
     # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了:apt-get update 全线
     # Ign,退回 archive.ubuntu.com 后拉索引时停住,publish #211 就这样零输出吊了
     # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
     # 那边的源恢复之后换回 ubuntu-latest。
     runs-on: ubuntu-26.04
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+      ids_x86_64: ${{ steps.apps.outputs.ids_x86_64 }}
+      ids_aarch64: ${{ steps.apps.outputs.ids_aarch64 }}
+      build_matrix: ${{ steps.apps.outputs.build_matrix }}
     env:
-      OUT_DIR: ${{ github.workspace }}/out
-      REPO_DIR: ${{ github.workspace }}/out/repo
-      GNUPGHOME_DIR: ${{ github.workspace }}/.gnupg-flatpark
       R2_BUCKET: ${{ vars.R2_BUCKET }}
-      CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
-      # rclone S3 remote "r2" — the name must be a single token (no _/-), since
-      # rclone derives it from the env var up to the first underscore.
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare
       RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-      RCLONE_CONFIG_R2_ACL: private
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # scan-registry.sh reads the descriptors with node.
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: site/package-lock.json
       # Every run needs rclone: even a site publish reads the .published-sha
       # marker from R2 to know what it is diffing against.
       - name: Install rclone
@@ -105,66 +113,6 @@ jobs:
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "publish scope: $scope ($reason)"
 
-      - name: Install flatpak toolchain
-        if: steps.scope.outputs.scope != 'site'
-        run: |
-          sudo apt-get update
-          # The distro package, not the Flathub app a developer machine uses:
-          # the sandboxed builder reaches the host's flatpak over the session
-          # bus, and this runner has none it can use. build-app.sh picks
-          # whichever is present.
-          sudo apt-get install -y flatpak flatpak-builder ostree
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-      - name: Import signing subkey (master never reaches CI)
-        if: steps.scope.outputs.scope != 'site'
-        env:
-          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
-        run: |
-          mkdir -p "$GNUPGHOME_DIR"; chmod 700 "$GNUPGHOME_DIR"
-          printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" \
-            | GNUPGHOME="$GNUPGHOME_DIR" gpg --batch --import
-          GNUPGHOME="$GNUPGHOME_DIR" gpg --list-secret-keys
-
-      # The repo is cached between runs so the R2 pull only reconciles a delta
-      # instead of re-downloading every object (that pull grows linearly with
-      # the catalog). github.sha keys are always fresh; restore-keys picks the
-      # most recent previous publish. A metadata-only pull (just refs +
-      # *.commit) is NOT an alternative: build-update-repo regenerates the
-      # merged appstream branch and hard-fails without the full object store.
-      - name: Restore repo cache
-        if: steps.scope.outputs.scope != 'site'
-        uses: actions/cache@v6
-        with:
-          path: out/repo
-          key: flatpak-repo-${{ github.sha }}
-          restore-keys: |
-            flatpak-repo-
-
-      - name: Reconcile repo with R2 (authoritative base)
-        if: steps.scope.outputs.scope != 'site'
-        run: |
-          mkdir -p "$REPO_DIR"
-          # sync (not copy), so objects pruned from R2 by delist-prune are also
-          # dropped from the cached copy instead of being re-uploaded later.
-          # objects/ are content-addressed: same name => same bytes, size
-          # compare is enough. Everything else (refs, summary, config) is
-          # mutable and often same-size, so compare by checksum. No `|| true`:
-          # with a cache-restored base, a half-failed pull would mean building
-          # on a stale repo — better to fail the run and retry.
-          rclone sync "r2:$R2_BUCKET/objects" "$REPO_DIR/objects" --size-only --fast-list
-          rclone sync "r2:$R2_BUCKET" "$REPO_DIR" --exclude "objects/**" --checksum --fast-list
-
-      # The refs upload is additive (rclone copy), so a ref delist-prune removed
-      # only locally survives in R2 and the sync above pulls it back — dangling,
-      # because prune already reclaimed its objects. Every summary regeneration
-      # then hard-fails ("No such metadata object <commit>.commit"), wedging all
-      # later publishes, not just the one after the de-list. Drop those refs here
-      # and queue the same keys for a targeted delete in the R2 sync below.
-      - name: Drop dangling refs left by a de-list
-        if: steps.scope.outputs.scope != 'site'
-        run: RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt" ./scripts/drop-dangling-refs.sh
-
       - name: Decide which apps to build
         id: apps
         if: steps.scope.outputs.scope != 'site'
@@ -182,27 +130,198 @@ jobs:
           git rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1 || base="$BEFORE"
           if [ "$REBUILD_ALL" = "true" ]; then
             ids="$(./scripts/scan-registry.sh --ids | tr '\n' ' ')"          # full rebuild
-          # A published repo always has a signed summary; its absence after the
-          # R2 sync means a cold start (or wiped bucket) => full rebuild.
-          elif [ -f "$REPO_DIR/summary" ] && git rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1; then
+          # A published repo always has a signed summary; its absence in R2
+          # means a cold start (or wiped bucket) => full rebuild.
+          elif [ -n "$(rclone lsf "r2:$R2_BUCKET/summary" 2>/dev/null)" ] && git rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1; then
             ids="$(./scripts/changed-apps.sh "$base" "$GITHUB_SHA" | tr '\n' ' ')"
           else
             ids="$(./scripts/scan-registry.sh --ids | tr '\n' ' ')"          # cold start / unknown base
           fi
-          echo "ids=$ids" >> "$GITHUB_OUTPUT"
-          echo "building: ${ids:-<none>} (diff base: ${base:-<none>})"
+          # Each arch builds its own share: every app is x86_64 unless its
+          # descriptor narrows it, aarch64 only when build.arches opts in.
+          ids_x86_64="" ids_aarch64=""
+          if [ -n "$ids" ]; then
+            ids_x86_64="$(./scripts/scan-registry.sh --ids --arch x86_64 $ids | tr '\n' ' ')"
+            ids_aarch64="$(./scripts/scan-registry.sh --ids --arch aarch64 $ids | tr '\n' ' ')"
+          fi
+          # One build leg per arch that has work, on its native runner. Left
+          # empty when neither has any, which skips the build job outright.
+          legs=""
+          [ -n "${ids_x86_64// }" ] && legs='{"arch":"x86_64","runner":"ubuntu-26.04"}'
+          [ -n "${ids_aarch64// }" ] && legs="${legs:+$legs,}"'{"arch":"aarch64","runner":"ubuntu-24.04-arm"}'
+          echo "ids_x86_64=$ids_x86_64" >> "$GITHUB_OUTPUT"
+          echo "ids_aarch64=$ids_aarch64" >> "$GITHUB_OUTPUT"
+          echo "build_matrix=${legs:+{\"include\":[$legs]\}}" >> "$GITHUB_OUTPUT"
+          echo "building x86_64: ${ids_x86_64:-<none>}"
+          echo "building aarch64: ${ids_aarch64:-<none>}"
+          echo "(diff base: ${base:-<none>})"
 
-      - name: Build changed apps into the repo
-        if: steps.apps.outputs.ids != ''
-        env:
-          IDS: ${{ steps.apps.outputs.ids }}
+  # Each arch is built natively on its own runner. These jobs hold no secrets:
+  # app build-commands run here, signed with a throwaway key, and the publish
+  # job re-commits the refs into the real repo under the FlatPark key
+  # (scripts/import-arch-repo.sh). Since every app is extra-data, the hand-over
+  # repo holds only wrappers and small shims — the payload is fetched on the
+  # user's machine.
+  build:
+    needs: plan
+    if: needs.plan.outputs.build_matrix != ''
+    strategy:
+      matrix: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
+    name: build (${{ matrix.arch }})
+    # x86_64 runs on 26.04 to dodge the broken azure apt mirror (see plan);
+    # the arm images take apt from ports.ubuntu.com instead.
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install flatpak toolchain
         run: |
+          # ubuntu-24.04-arm ships flatpak 1.14, which rejects finish-args added
+          # since (--device=input, used by OpenTubeX). The x86 runner is 26.04.
+          if [ "$(uname -m)" = aarch64 ]; then
+            sudo add-apt-repository -y ppa:flatpak/stable
+          fi
+          sudo apt-get update
+          # The distro package, not the Flathub app a developer machine uses:
+          # the sandboxed builder reaches the host's flatpak over the session
+          # bus, and this runner has none it can use. build-app.sh picks
+          # whichever is present.
+          sudo apt-get install -y flatpak flatpak-builder ostree
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      - name: Build ${{ matrix.arch }} apps (throwaway signing key)
+        env:
+          IDS: ${{ needs.plan.outputs[format('ids_{0}', matrix.arch)] }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          export OUT_DIR="$PWD/out" GNUPGHOME_DIR="$PWD/.gnupg-ci"
+          ./scripts/gen-signing-key.sh >/dev/null
           for id in $IDS; do
             echo "::group::build $id"; ./scripts/build-app.sh "$id"; echo "::endgroup::"
           done
+          tar -C out -cf "repo-$ARCH.tar" repo
+      - uses: actions/upload-artifact@v7
+        with:
+          name: repo-${{ matrix.arch }}
+          path: repo-${{ matrix.arch }}.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build]
+    # Runs even when a needed job failed, so the alert below still fires; the
+    # first step after checkout turns that failure into this job's.
+    if: ${{ !cancelled() }}
+    # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了:apt-get update 全线
+    # Ign,退回 archive.ubuntu.com 后拉索引时停住,publish #211 就这样零输出吊了
+    # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
+    # 那边的源恢复之后换回 ubuntu-latest。
+    runs-on: ubuntu-26.04
+    env:
+      OUT_DIR: ${{ github.workspace }}/out
+      REPO_DIR: ${{ github.workspace }}/out/repo
+      GNUPGHOME_DIR: ${{ github.workspace }}/.gnupg-flatpark
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+      # rclone S3 remote "r2" — the name must be a single token (no _/-), since
+      # rclone derives it from the env var up to the first underscore.
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Require the plan and the builds
+        env:
+          PLAN: ${{ needs.plan.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          [ "$PLAN" = success ] || { echo "::error::plan job: $PLAN"; exit 1; }
+          case "$BUILD" in success|skipped) ;; *) echo "::error::build job: $BUILD"; exit 1 ;; esac
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install rclone
+        if: needs.plan.outputs.scope != 'site'
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Install flatpak toolchain
+        if: needs.plan.outputs.scope != 'site'
+        run: |
+          sudo apt-get update
+          # Nothing is built here, so no flatpak-builder: this job only imports
+          # the build jobs' refs, signs, and regenerates the summary.
+          sudo apt-get install -y flatpak ostree
+
+      - name: Import signing subkey (master never reaches CI)
+        if: needs.plan.outputs.scope != 'site'
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$GNUPGHOME_DIR"; chmod 700 "$GNUPGHOME_DIR"
+          printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" \
+            | GNUPGHOME="$GNUPGHOME_DIR" gpg --batch --import
+          GNUPGHOME="$GNUPGHOME_DIR" gpg --list-secret-keys
+
+      # The repo is cached between runs so the R2 pull only reconciles a delta
+      # instead of re-downloading every object (that pull grows linearly with
+      # the catalog). github.sha keys are always fresh; restore-keys picks the
+      # most recent previous publish. A metadata-only pull (just refs +
+      # *.commit) is NOT an alternative: build-update-repo regenerates the
+      # merged appstream branch and hard-fails without the full object store.
+      # delist-prune restores this same cache (restore-only): keep `path` and
+      # the key prefix in step with it.
+      - name: Restore repo cache
+        if: needs.plan.outputs.scope != 'site'
+        uses: actions/cache@v6
+        with:
+          path: out/repo
+          key: flatpak-repo-${{ github.sha }}
+          restore-keys: |
+            flatpak-repo-
+
+      - name: Reconcile repo with R2 (authoritative base)
+        if: needs.plan.outputs.scope != 'site'
+        run: ./scripts/pull-r2.sh
+
+      # The refs upload is additive (rclone copy), so a ref delist-prune removed
+      # only locally survives in R2 and the sync above pulls it back — dangling,
+      # because prune already reclaimed its objects. Every summary regeneration
+      # then hard-fails ("No such metadata object <commit>.commit"), wedging all
+      # later publishes, not just the one after the de-list. Drop those refs here
+      # and queue the same keys for a targeted delete in the R2 sync below.
+      - name: Drop dangling refs left by a de-list
+        if: needs.plan.outputs.scope != 'site'
+        run: RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt" ./scripts/drop-dangling-refs.sh
+
+      - uses: actions/download-artifact@v7
+        if: needs.build.result == 'success'
+        with:
+          pattern: repo-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/handover
+      - name: Import the builds, signed with the FlatPark key
+        if: needs.build.result == 'success'
+        run: |
+          for tar in "$RUNNER_TEMP"/handover/repo-*.tar; do
+            arch="$(basename "$tar" .tar)"; arch="${arch#repo-}"
+            mkdir -p "$RUNNER_TEMP/$arch"
+            tar -C "$RUNNER_TEMP/$arch" -xf "$tar"
+            echo "::group::import $arch"
+            ./scripts/import-arch-repo.sh "$RUNNER_TEMP/$arch/repo"
+            echo "::endgroup::"
+          done
 
       - name: Re-sign summary + write discovery files
-        if: steps.scope.outputs.scope != 'site'
+        if: needs.plan.outputs.scope != 'site'
         run: |
           ./scripts/publish-repo.sh
           while IFS= read -r id; do ./scripts/gen-discovery.sh "$id"; done < <(./scripts/scan-registry.sh --ids)
@@ -224,14 +343,14 @@ jobs:
         run: ./scripts/gen-site.sh $(./scripts/scan-registry.sh --ids | tr '\n' ' ')
 
       - name: Sync repo to R2 (objects first, summary last)
-        if: steps.scope.outputs.scope != 'site'
+        if: needs.plan.outputs.scope != 'site'
         run: RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt" ./scripts/sync-r2.sh
 
       - name: Deploy site to Cloudflare Pages (atomic)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SCOPE: ${{ steps.scope.outputs.scope }}
+          SCOPE: ${{ needs.plan.outputs.scope }}
         run: |
           npx -y wrangler@3 pages deploy "$OUT_DIR/site" \
             --project-name="$CF_PAGES_PROJECT" --branch=main
@@ -248,7 +367,7 @@ jobs:
       # keeps its old value and the next run rebuilds this push's apps too.
       # Also written locally so the repo cache saved from this job matches R2.
       - name: Record published commit
-        if: steps.scope.outputs.scope != 'site'
+        if: needs.plan.outputs.scope != 'site'
         run: |
           printf '%s\n' "$GITHUB_SHA" > "$REPO_DIR/.published-sha"
           printf '%s\n' "$GITHUB_SHA" | rclone rcat "r2:$R2_BUCKET/.published-sha" \

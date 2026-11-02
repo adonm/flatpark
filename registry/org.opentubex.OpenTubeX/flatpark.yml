@@ -7,6 +7,7 @@ build:
   manifest: org.opentubex.OpenTubeX.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: AudioVideo
   upstream_approved: true
@@ -18,7 +19,11 @@ catalog:
     - Electron
 update:
   command: ./resolve-update.sh
+  # OpenTubeX's release workflow opens the update PR itself (release notes,
+  # screenshots, finish-args from upstream's manifest); a pin-only refresh
+  # would race it and ship without them (#817, #899). Run the resolver by hand
+  # with FORCE=1 if that PR doesn't come. See #901.
+  auto: false
 policy:
   proprietary: false
-  extra_data_first: true
   dangerous_permissions: []

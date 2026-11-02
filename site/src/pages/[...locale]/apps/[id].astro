@@ -5,6 +5,8 @@ import Screenshots from '../../../components/Screenshots.astro';
 import InfoPanel from '../../../components/InfoPanel.astro';
 import ProseBlocks from '../../../components/ProseBlocks.astro';
 import { loadApps, loadCatalog } from '../../../lib/data.mjs';
+import { collectionsOf } from '../../../lib/collections.mjs';
+import { jsonForScript } from '../../../lib/json-script.mjs';
 import { pathsForLocales } from '../../../i18n/paths.mjs';
 import { getLangFromUrl, localizePath, sectionLabel, useTranslations } from '../../../i18n';
 
@@ -13,14 +15,29 @@ export function getStaticPaths() {
   const apps = loadApps();
   // App data itself is locale-independent for now — only the chrome around it
   // is translated — so every locale gets the same entries.
-  return pathsForLocales(() => apps.map((app) => ({ params: { id: app.id }, props: { app, repo } })));
+  return pathsForLocales(() =>
+    apps.map((app) => ({ params: { id: app.id }, props: { app, repo, collections: collectionsOf(apps, app.id) } })),
+  );
 }
 
-const { app, repo } = Astro.props;
+const { app, repo, collections } = Astro.props;
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const fallback = (app.name.match(/[A-Za-z0-9]/g) ?? []).slice(0, 2).join('').toUpperCase();
 const latest = app.releases?.[0];
+
+// The shared runtime the app runs on, pulled from Flathub on install. The
+// panel is narrow, so the row shows the familiar short name and keeps the full
+// ref (what `flatpak list --runtime` prints) in the hover title.
+const runtimeNames = {
+  'org.freedesktop.Platform': 'Freedesktop',
+  'org.gnome.Platform': 'GNOME',
+  'org.kde.Platform': 'KDE',
+};
+const runtimeRef = app.runtime ? `${app.runtime}//${app.runtimeVersion}` : '';
+const runtimeLabel = app.runtime
+  ? `${runtimeNames[app.runtime] ?? app.runtime} ${app.runtimeVersion}`.trim()
+  : '';
 
 const detailRows = [
   app.developer && { label: t('detail.row.developer'), value: app.developer },
@@ -29,12 +46,18 @@ const detailRows = [
     value: app.license.label,
     href: app.license.url,
   },
+  runtimeLabel && { label: t('detail.row.runtime'), value: runtimeLabel, title: runtimeRef },
+  app.arches?.length && { label: t('detail.row.arches'), value: app.arches.join(', ') },
   latest && { label: t('detail.row.version'), value: `${latest.version}${latest.date ? ` · ${latest.date}` : ''}` },
   app.website && { label: t('detail.row.website'), value: t('detail.row.homepage'), href: app.website },
   app.urls?.help && { label: t('detail.row.support'), value: t('detail.row.help'), href: app.urls.help },
   app.sourceUrl && { label: t('detail.row.source'), value: app.name, href: app.sourceUrl },
   app.packagingUrl && { label: t('detail.row.packaging'), value: 'flatpark/registry', href: app.packagingUrl },
 ].filter(Boolean);
+
+// Other Flatpak apps it runs with (flatpark.yml `requires:`): installCmd
+// already installs them; the .flatpakref cannot, so its entry says so.
+const requiredNames = (app.requires ?? []).map((r) => r.name).join(', ');
 
 const hasShots = (app.screenshots?.length ?? 0) > 0;
 
@@ -71,7 +94,7 @@ const ld = {
   description={t('detail.meta', { app: app.name, summary: app.summary })}
   image={app.icon}
 >
-  <script type="application/ld+json" slot="head" set:html={JSON.stringify(ld)} />
+  <script type="application/ld+json" slot="head" set:html={jsonForScript(ld)} />
   <Topbar repo={repo} />
   <main>
     <div class="mx-auto max-w-5xl px-5 pt-6 text-sm text-muted">
@@ -113,6 +136,12 @@ const ld = {
             {app.proprietary ? <span class="ml-2 chip">{t('detail.proprietary')}</span> : null}
           </p>
           <p class="mt-2 max-w-2xl text-muted">{app.summary}</p>
+          {collections.map((c) => (
+            <a
+              href={localizePath(`/collections/${c.slug}/`, lang)}
+              class="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline"
+            >{t('collection.member', { name: c.name, count: c.apps.length })} &rarr;</a>
+          ))}
         </div>
         <div class="flex shrink-0 flex-col items-start gap-2 sm:items-end">
           <div class="relative inline-flex" data-install>
@@ -152,6 +181,7 @@ const ld = {
                 <span>
                   <span class="block text-sm font-semibold text-ink">{t('detail.install.ref.title')}</span>
                   <span class="block text-xs text-muted">{t('detail.install.ref.body')}</span>
+                  {requiredNames && <span class="block text-xs text-muted">{t('detail.install.ref.requires', { names: requiredNames })}</span>}
                 </span>
               </a>
             </div>
@@ -161,7 +191,8 @@ const ld = {
               class="absolute top-[calc(100%+0.5rem)] right-0 z-30 w-64 rounded-xl border border-line bg-surface px-3 py-2 text-left text-xs text-muted shadow-lg"
             >{t('detail.install.hint')}</p>
           </div>
-          <a href={localizePath('/setup/', lang)} class="text-xs text-muted hover:text-brand">{t('detail.setup_link', { repo: repo.title })} &rarr;</a>
+          {requiredNames && <p class="max-w-64 text-xs text-muted sm:text-right">{t('detail.requires', { names: requiredNames })}</p>}
+          <a href={localizePath('/docs/users/setup/', lang)} class="text-xs text-muted hover:text-brand">{t('detail.setup_link', { repo: repo.title })} &rarr;</a>
         </div>
       </div>
 
@@ -180,6 +211,21 @@ const ld = {
         }
         {app.license ? <span class="chip">{app.license.label}</span> : null}
         {latest ? <span class="chip">v{latest.version}</span> : null}
+        {
+          app.stats?.installs30 > 0 && (
+            <span
+              class="inline-flex min-h-6 items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 pr-2.5 pl-2 text-xs text-muted"
+              title={t('detail.installs30.title')}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" class="shrink-0 text-brand" aria-hidden="true">
+                <path d="M8 1a.75.75 0 0 1 .75.75v6.69l1.97-1.97a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.53a.75.75 0 0 1 1.06-1.06l1.97 1.97V1.75A.75.75 0 0 1 8 1Z"></path>
+                <path d="M2.75 10a.75.75 0 0 1 .75.75v1.75c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V10.75a.75.75 0 0 1 1.5 0v1.75A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.5V10.75A.75.75 0 0 1 2.75 10Z"></path>
+              </svg>
+              <span class="text-sm font-extrabold tabular-nums text-brand">{app.stats.installs30.toLocaleString(lang)}</span>
+              <span class="font-semibold">{t('detail.installs30.label')}</span>
+            </span>
+          )
+        }
       </div>
     </section>
 
@@ -224,7 +270,7 @@ const ld = {
           )
         }
       </div>
-      <InfoPanel rows={detailRows} permissions={app.permissions} />
+      <InfoPanel rows={detailRows} permissions={app.permissions} packaging={app.packaging} />
     </section>
   </main>
 

@@ -7,9 +7,10 @@ build:
   manifest: app.voltius.Voltius.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: Network
-  upstream_approved: false
+  upstream_approved: true
   tags:
     - SSH
     - SFTP
@@ -20,8 +21,15 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: false
-  extra_data_first: true
   # Requested by upstream (VoltiusApp/voltius#357): the local terminal tab
   # opens the host login shell through flatpak-spawn --host.
   dangerous_permissions:
     - --talk-name=org.freedesktop.Flatpak
+
+# What this package does around the vendor's build; shown on the site as the
+# packaging level. See docs/packagers/playbook.md (golden rule 1).
+packaging:
+  - kind: host-command
+    detail:
+      en: "The local terminal opens your login shell on the host through flatpak-spawn, with the same access as a terminal outside the sandbox."
+      zh-Hans: "本地终端通过 flatpak-spawn 打开你在宿主系统上的登录 shell，权限与沙箱外的终端相同。"

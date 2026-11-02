@@ -1,0 +1,60 @@
+id: com.teymz.wealthfolio
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: wealthfolio
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Tauri/WebKitGTK personal finance tracker. Everything it links against —
+  # webkit2gtk-4.1, gtk-3, libsoup-3 — is in org.gnome.Platform.
+  - --share=ipc
+  # Market data and exchange-rate quotes, plus the optional Wealthfolio Connect
+  # sync service. Accounts and transactions stay in a local SQLite database.
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The app keeps its profile's encryption key and sync credentials in the
+  # desktop's Secret Service keyring; without it the profile cannot be opened.
+  - --talk-name=org.freedesktop.secrets
+  # No filesystem grant: the database lives in the app's private per-app
+  # directory, and CSV imports, exports and backups are picked through the file
+  # chooser portal.
+modules:
+  - name: wealthfolio
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 wealthfolio-wrapper /app/bin/wealthfolio
+      - install -Dm644 com.teymz.wealthfolio.desktop /app/share/applications/com.teymz.wealthfolio.desktop
+      - install -Dm644 com.teymz.wealthfolio.metainfo.xml /app/share/metainfo/com.teymz.wealthfolio.metainfo.xml
+      - install -Dm644 com.teymz.wealthfolio.png /app/share/icons/hicolor/512x512/apps/com.teymz.wealthfolio.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: app.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/wealthfolio/wealthfolio/releases/download/v3.12.0/Wealthfolio_3.12.0_amd64.deb
+        sha256: f93158acc8edc2a2f56c770ccda0dd80eee57a62c8524194f5442559642ceb8c
+        size: 67852308
+      - type: extra-data
+        filename: app.deb
+        only-arches:
+          - aarch64
+        url: https://github.com/wealthfolio/wealthfolio/releases/download/v3.12.0/Wealthfolio_3.12.0_arm64.deb
+        sha256: a1e79723355ab41ec6ab89cba1b616055f899739f74b83c60c552c10d1bc6a5a
+        size: 69939866
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: wealthfolio-wrapper
+      - type: file
+        path: com.teymz.wealthfolio.desktop
+      - type: file
+        path: com.teymz.wealthfolio.metainfo.xml
+      - type: file
+        path: com.teymz.wealthfolio.png

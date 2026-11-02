@@ -17,6 +17,10 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
   - --unset-env=ELECTRON_RUN_AS_NODE
+  # coreutils 9.12 in the 26.08 runtime quotes `env` output even into a pipe;
+  # the bundled shell-env parses it as key=value and hands the quotes on to the
+  # language server (broken D-Bus address, sign-in can't open a browser).
+  - --env=QUOTING_STYLE=literal
   - --filesystem=home
 modules:
   - name: antigravity
@@ -33,9 +37,9 @@ modules:
         filename: Antigravity.tar.gz
         only-arches:
           - x86_64
-        url: https://storage.googleapis.com/antigravity-public/antigravity-hub/2.17.0-5217732355031040/linux-x64/Antigravity.tar.gz
-        sha256: 6a9b0ff60f7bd0d165022034aad9b047b3b0cf2ac56134feded8e68760e2ab01
-        size: 179494137
+        url: https://storage.googleapis.com/antigravity-public/antigravity-hub/2.28.2-5937220255875072/linux-x64/Antigravity.tar.gz
+        sha256: bd92938b088863baff568b08236f76f0d237e8a39581077a07937f4dc6e138c3
+        size: 182657561
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
