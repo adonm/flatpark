@@ -4,8 +4,13 @@
 //
 //   <resolver JSON on stdin> | update-pins.mjs <manifest> [metainfo]
 //
-// Resolver JSON: { version, releaseDate, sources: [ { filename, url } ],
+// Resolver JSON: { version, releaseDate, sources: [ { filename, url, arch?, size?, sha256? } ],
 //                  releaseUrl?, releaseNotes? }
+//
+// `arch` scopes a source to one architecture (it becomes the pin's only-arches).
+// An app published for several arches gives each payload the same filename and
+// an arch, so apply_extra unpacks one name whichever arch it runs on. Without
+// `arch` a source keeps the only-arches it already has (x86_64 when it is new).
 //
 // releaseUrl and releaseNotes are optional per-app opt-ins. releaseUrl becomes
 // the release's <url type="details">, i.e. a link to upstream's own notes.
@@ -15,11 +20,34 @@
 // an empty <description></description> for a human to fill in later, which is
 // also what Flathub's external-data-checker writes.
 //
+// `size` is an optional per-source opt-in for upstreams that re-upload a build
+// under the same versioned URL: the resolver reports the payload's current
+// Content-Length (a cheap HEAD), and a source whose size or URL no longer
+// matches its pin is re-pinned even though the version did not move. No
+// <release> is added for such a re-pin — it is the same version.
+//
+// `sha256` is the stronger form of the same opt-in, for upstreams that publish
+// a digest: a re-cut can keep the exact byte count, which `size` alone misses.
+// A source whose reported sha256 differs from its pin is re-pinned. With both
+// sha256 and size reported the pin is taken as is, with no download; with only
+// sha256 the payload is downloaded and must hash to it.
+//
+// GitHub release assets need no resolver opt-in: their sha256 (`digest`) and
+// size are in the releases API, so a source whose URL is a release asset
+// (…/releases/download/<tag>/<name>, where a tag may hold a slash, or
+// …/releases/latest/download/<name>) is
+// looked up there, one call per release, with GITHUB_TOKEN when set. That is
+// both the drift signal (flatpark#977: v2026.44 of Open CAD Studio was replaced
+// under its tag with the same size) and the pin itself, so a GitHub-hosted
+// payload is never downloaded here. An asset without a digest (uploaded before
+// GitHub computed them) or a failed lookup falls back to the behaviour above.
+//
 // The comparison anchor is the VERSION: the latest <release version="..."> in
-// the metainfo is "what we have". If the resolver's version equals it, nothing
-// changed (exit 10, no download). On a new version we download every source,
-// recompute the extra-data sha256/size FlatPark-side, rewrite the MANAGED block,
-// and prepend a <release> to the metainfo. With no version anchor (resolver
+// the metainfo is "what we have". If the resolver's version equals it and no
+// source reports drift, nothing changed (exit 10, no download). On a new
+// version we download every source, recompute the extra-data sha256/size
+// FlatPark-side, rewrite the MANAGED block, and prepend a <release> to the
+// metainfo. With no version anchor (resolver
 // emits no version), we fall back to per-source URL comparison.
 //
 // Exit 0  = changed (manifest and/or metainfo rewritten); prints the version.
@@ -53,15 +81,15 @@ if (bi < 0 || ei < 0 || ei < bi) die('manifest has no MANAGED EXTRA-DATA block')
 const baseIndent = (lines[bi].match(/^(\s*)/)[1]) || '      ';
 const oldBlock = lines.slice(bi + 1, ei);
 
-// Parse the current block: filename -> { url, sha256, size, arches }.
-const current = {};
+// Parse the current block into { filename, url, sha256, size, arches } records.
+const current = [];
 let cur = null;
 for (const l of oldBlock) {
   const t = l.trim();
-  if (t === '- type: extra-data') { cur = { arches: [] }; continue; }
+  if (t === '- type: extra-data') { cur = { arches: [] }; current.push(cur); continue; }
   if (!cur) continue;
   let m;
-  if ((m = t.match(/^filename:\s*(.+)$/))) { cur.filename = m[1].trim(); current[cur.filename] = cur; }
+  if ((m = t.match(/^filename:\s*(.+)$/))) cur.filename = m[1].trim();
   else if ((m = t.match(/^url:\s*(.+)$/))) cur.url = m[1].trim();
   else if ((m = t.match(/^sha256:\s*(.+)$/))) cur.sha256 = m[1].trim();
   else if ((m = t.match(/^size:\s*(.+)$/))) cur.size = m[1].trim();
@@ -74,13 +102,6 @@ const firstReleaseVersion = (xml) => {
   return m ? m[1] : '';
 };
 const knownVersion = firstReleaseVersion(metainfo);
-
-// Version gate: cheap short-circuit when upstream hasn't moved (no downloads).
-if (resolver.version && knownVersion && resolver.version === knownVersion) process.exit(10);
-
-// A version present here means a real bump (or no anchor yet) -> re-pin fresh.
-// Without a version we fall back to URL comparison and only fetch moved sources.
-const versionBump = !!resolver.version;
 
 async function pin(url) {
   const hash = createHash('sha256');
@@ -102,16 +123,83 @@ async function pin(url) {
 const fields = `${baseIndent}  `;
 const archItem = `${baseIndent}    `;
 const out = [];
+// The pin a resolver source refreshes: same filename and, when the source names
+// an arch, the record scoped to it. A filename shared across arches with no arch
+// to tell them apart is ambiguous, and guessing would cross-pin the payloads.
+function previous(src) {
+  const named = current.filter((c) => c.filename === src.filename);
+  if (src.arch) return named.find((c) => c.arches.includes(src.arch));
+  if (named.length > 1) die(`${src.filename} is pinned for several arches; the resolver must give each source an arch`);
+  return named[0];
+}
+
+const GH_API = (process.env.FLATPARK_GITHUB_API || 'https://api.github.com').replace(/\/$/, '');
+const GH_ASSET = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/(?:download\/(.+)|latest\/download)\/([^/?#]+)$/;
+const ghReleases = new Map();
+async function ghAsset(url) {
+  const m = url.match(GH_ASSET);
+  if (!m) return null;
+  const [, owner, repo, tag, name] = m;
+  const api = `${GH_API}/repos/${owner}/${repo}/releases/${tag ? `tags/${encodeURIComponent(decodeURIComponent(tag))}` : 'latest'}`;
+  if (!ghReleases.has(api)) {
+    const headers = { accept: 'application/vnd.github+json' };
+    if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    ghReleases.set(api, fetch(api, { headers })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .catch((e) => { process.stderr.write(`update-pins: ${api}: ${e.message}, no digest\n`); return null; }));
+  }
+  const rel = await ghReleases.get(api);
+  const a = rel?.assets?.find((x) => x.name === decodeURIComponent(name));
+  const sha = /^sha256:[0-9a-f]{64}$/.test(a?.digest || '') ? a.digest.slice(7) : null;
+  return sha && a.size ? { sha256: sha, size: String(a.size) } : null;
+}
+
+// What upstream says the payload is now: the resolver's own size/sha256, else
+// the GitHub asset metadata. Either field may be null.
+const reportedSha = (src) => (src.sha256 == null ? null : String(src.sha256).replace(/^sha256:/, '').toLowerCase());
+async function published(src) {
+  const sha256 = reportedSha(src);
+  const gh = sha256 ? null : await ghAsset(src.url);
+  return { sha256: sha256 ?? gh?.sha256 ?? null, size: src.size != null ? String(src.size) : gh?.size ?? null };
+}
+
+// A source with a published size or sha256 has drifted when that value (or its
+// URL) no longer matches the pin: upstream replaced the bytes in place.
+function drifted(src) {
+  const pub = src.published;
+  if (pub.size == null && pub.sha256 == null) return false;
+  const prev = previous(src);
+  if (!prev || prev.url !== src.url) return true;
+  return (pub.size != null && prev.size !== pub.size) || (pub.sha256 != null && prev.sha256 !== pub.sha256);
+}
+
 for (const src of resolver.sources) {
   if (!src.filename || !src.url) die('each source needs filename + url');
-  const prev = current[src.filename];
-  const arches = prev && prev.arches.length ? prev.arches : ['x86_64'];
+  src.published = await published(src);
+}
+
+// Version gate: cheap short-circuit when upstream hasn't moved (no downloads).
+const sameVersion = !!resolver.version && !!knownVersion && resolver.version === knownVersion;
+if (sameVersion && !resolver.sources.some(drifted)) process.exit(10);
+
+// A version present here means a real bump (or no anchor yet) -> re-pin fresh.
+// Otherwise (no version, or same version with drift) only moved sources are
+// fetched: a changed URL, or a size that no longer matches the pin.
+const versionBump = !!resolver.version && !sameVersion;
+
+for (const src of resolver.sources) {
+  const prev = previous(src);
+  const pub = src.published;
+  const arches = src.arch ? [src.arch] : prev && prev.arches.length ? prev.arches : ['x86_64'];
   let sha256, size;
-  if (!versionBump && prev && prev.url === src.url && prev.sha256 && prev.size) {
-    ({ sha256, size } = prev); // URL unchanged and no version bump -> keep the pin
+  if (!versionBump && prev && prev.url === src.url && prev.sha256 && prev.size && !drifted(src)) {
+    ({ sha256, size } = prev); // URL and size unchanged, no version bump -> keep the pin
+  } else if (pub.sha256 && pub.size) {
+    ({ sha256, size } = pub); // upstream publishes both -> pin without downloading
   } else {
     try { ({ sha256, size } = await pin(src.url)); }
     catch (e) { die(e.message); }
+    if (pub.sha256 && pub.sha256 !== sha256) die(`${src.url}: downloaded sha256 ${sha256} != published ${pub.sha256}`);
   }
   out.push(`${baseIndent}- type: extra-data`);
   out.push(`${fields}filename: ${src.filename}`);

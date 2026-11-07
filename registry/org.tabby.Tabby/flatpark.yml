@@ -7,6 +7,7 @@ build:
   manifest: org.tabby.Tabby.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: Development
   tags:
@@ -18,5 +19,12 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: false
-  extra_data_first: true
   dangerous_permissions: []
+
+# What this package does around the vendor's build; shown on the site as the
+# packaging level. See docs/packagers/playbook.md (golden rule 1).
+packaging:
+  - kind: seeded-config
+    detail:
+      en: "On first launch, turns off Tabby's automatic updates; Flatpak delivers updates instead."
+      zh-Hans: "首次启动时关闭 Tabby 的自动更新，改由 Flatpak 负责更新。"

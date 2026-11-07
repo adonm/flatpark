@@ -16,10 +16,11 @@ build:
   manifest: org.libredb.Studio.yml
   branch: stable
   mode: extra-data
+  arches: [x86_64, aarch64]
 catalog:
   category: Development
   # LibreDB packages its own application - approved by construction, with the
-  # matching row in docs/upstream-approvals.md citing this submission PR.
+  # matching row in docs/reference/upstream-approvals.md citing this submission PR.
   upstream_approved: true
   tags:
     - Database
@@ -33,5 +34,4 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: false
-  extra_data_first: true
   dangerous_permissions: []

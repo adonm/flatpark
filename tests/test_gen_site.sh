@@ -54,7 +54,7 @@ EOF
 cat > "$two_dir/flatpark.yml" <<'EOF'
 id: io.flatpark.TestTwo
 name: Test Two
-summary: Second test app
+summary: 'Second test app </script><script>globalThis.pwned=1</script> & more'
 build:
   manifest: io.flatpark.TestTwo.yml
 catalog:
@@ -70,15 +70,45 @@ if [ ! -d "$ROOT/site/node_modules" ]; then
         echo "test_gen_site: SKIP (npm install failed, likely offline)"; exit 0
     fi
 fi
-FLATPARK_DATA_DIR="$data" node "$ROOT/site/tools/enrich.mjs" >/dev/null 2>&1 || true
+# Install counts for TestOne only: TestTwo was "listed after the last rollup".
+cat > "$tmp/totals.json" <<'EOF'
+{"since":"2026-10-01","through":"2026-10-03","apps":{"io.flatpark.TestOne":{"installs":1234,"updates":9,"installs30":56,"updates30":9,"downloads":1243,"active":40}}}
+EOF
+FLATPARK_DATA_DIR="$data" FLATPARK_STATS_URL="$tmp/totals.json" node "$ROOT/site/tools/enrich.mjs" >/dev/null 2>&1 || true
+# One collection over both fixtures, plus an unknown id that must be skipped.
+cat > "$tmp/collections.yml" <<'EOF'
+collections:
+  - slug: testsuite
+    name: Test Apps
+    carousel: true
+    summary:
+      en: Both test apps together.
+      zh-Hans: 两个测试应用。
+    howto:
+      label: How to test
+      url: /docs/packagers/playbook/
+    groups:
+      - title: Tools
+        summary: The first test app on its own.
+        apps: [io.flatpark.TestOne, io.flatpark.Missing]
+      - title: More
+        apps: [io.flatpark.TestTwo]
+    upcoming:
+      - name: Test Three
+        url: https://example.com/three
+EOF
 if ! ( cd "$ROOT/site" && FLATPARK_DATA_DIR="$data" SITE_OUT_DIR="$site_out" \
-        npm run build >/dev/null 2>&1 ); then
+        FLATPARK_COLLECTIONS_FILE="$tmp/collections.yml" \
+        npm run build >"$tmp/build.log" 2>&1 ); then
+    # A broken link between docs pages is a real failure, not an offline skip.
+    if grep -q "broken links in docs/" "$tmp/build.log"; then
+        echo "FAIL:"; grep -A20 "broken links in docs/" "$tmp/build.log" | grep "^  docs/"; exit 1
+    fi
     echo "test_gen_site: SKIP (astro build failed)"; exit 0
 fi
 
 index="$site_out/index.html"
 detail="$site_out/apps/io.flatpark.TestOne/index.html"
-setup="$site_out/setup/index.html"
 
 assert_file "$index"
 assert_contains "$index" "FlatPark"
@@ -86,6 +116,17 @@ assert_contains "$index" "Test One"
 assert_contains "$index" "Test Two"
 assert_contains "$index" "Search apps"
 assert_contains "$index" "data-app-card"
+# Install counts: a badge in the detail page's chip row, and a "Popular" order (new installs in the
+# last 30 days) — a dropdown option on the browse page, the default tab on the home page.
+assert_contains "$detail" ">56</span>"
+assert_contains "$detail" "new installs in 30 days"
+assert_contains "$site_out/apps/index.html" 'value="popular"'
+assert_contains "$site_out/apps/index.html" 'data-popular="56"'
+assert_contains "$index" 'class="seg is-active" aria-selected="true" data-sort-tab="popular"'
+assert_contains "$index" 'data-sort-tab="added"'
+assert_contains "$index" 'data-sort-tab="updated"'
+assert_contains "$index" 'data-sort-tab="approved"'
+assert_contains "$site_out/zh-Hans/apps/io.flatpark.TestOne/index.html" "近 30 天新装"
 # The first row needs enough clearance to lift beneath the sticky controls.
 assert_contains "$index" "pt-0.5"
 assert_contains "$index" "hover:-translate-y-0.5"
@@ -93,9 +134,20 @@ assert_contains "$index" "Finance"
 assert_contains "$index" "/apps/io.flatpark.TestOne/"
 
 # Detail page: Flathub-style Install button (flatpakref) + setup link, real
-# permissions/description. The manual command block now lives on /setup/.
+# permissions/description. The manual commands live in docs/users/setup.md.
 assert_file "$detail"
 assert_contains "$detail" "Test One"
+# A </script> in descriptor text must not end the JSON-LD block (PR #473 review).
+detail_two="$site_out/apps/io.flatpark.TestTwo/index.html"
+assert_file "$detail_two"
+# (Quoted attribute values such as <meta content> may carry it raw: `<` is
+# inert there.) The JSON-LD text runs to the first `<`, so the whole payload
+# must still be inside it.
+ld="$(grep -oE 'application/ld\+json">[^<]*' "$detail_two" || true)"
+case "$ld" in
+    *'\u003c/script\u003e\u003cscript\u003eglobalThis.pwned=1'*) ;;
+    *) echo "FAIL: summary broke out of the JSON-LD script: [$ld]"; exit 1 ;;
+esac
 assert_contains "$detail" "Permissions"
 assert_contains "$detail" "Network access"
 assert_contains "$detail" "FlatPark Test Dev"
@@ -103,7 +155,7 @@ assert_contains "$detail" "A test application for FlatPark."
 # description <ul> list items render as <li> in the About section
 assert_contains "$detail" "<li>Bullet feature one</li>"
 assert_contains "$detail" "io.flatpark.TestOne.flatpakref"
-assert_contains "$detail" "/setup/"
+assert_contains "$detail" "/docs/users/setup/"
 # Category chip links into the browse page with that section preselected, and
 # the back link lands on the browse page rather than the home grid.
 assert_contains "$detail" "/apps/?section=utilities"
@@ -111,38 +163,57 @@ assert_contains "$detail" "/apps/?section=utilities"
 assert_contains "$detail" "chip chip-link"
 assert_contains "$detail" '<a href="/apps/" class="hover:text-ink">'
 
-# Setup page carries the remote-add command.
-assert_file "$setup"
-assert_contains "$setup" "flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo"
+# Setup is a docs page and carries the remote-add command.
+assert_file "$site_out/docs/users/setup/index.html"
+assert_contains "$site_out/docs/users/setup/index.html" "https://dl.flatpark.org/flatpark.flatpakrepo"
+assert_contains "$index" "/docs/users/setup/"
 
-# Content pages (Astro content collection) + global footer.
-about="$site_out/about/index.html"
+# Docs library: the repo's docs/ rendered under /docs/, plus the global footer.
+docs="$site_out/docs"
+about="$docs/project/about/index.html"
 assert_file "$about"
 assert_contains "$about" "About FlatPark"
 assert_contains "$about" '<meta name="description"'
 # The global footer renders on every page — check it on the catalog index.
-assert_contains "$index" "/about/"
+assert_contains "$index" "/docs/project/about/"
 assert_contains "$index" "community Flatpak hub"
 
-assert_file "$site_out/policies/index.html"
-assert_contains "$site_out/policies/index.html" "De-listing"
-assert_file "$site_out/trust/index.html"
-assert_contains "$site_out/trust/index.html" "extra-data"
-assert_contains "$index" "/policies/"
-assert_contains "$index" "/trust/"
-assert_file "$site_out/contributing/index.html"
-assert_contains "$site_out/contributing/index.html" "flatpark.yml"
-assert_file "$site_out/guide/index.html"
-assert_contains "$site_out/guide/index.html" "remote-add"
-assert_contains "$index" "/contributing/"
-assert_contains "$index" "/guide/"
-assert_file "$site_out/conduct/index.html"
-assert_contains "$site_out/conduct/index.html" "Code of conduct"
-assert_contains "$index" "/conduct/"
-assert_file "$site_out/legal/index.html"
-assert_contains "$site_out/legal/index.html" "no accounts"
-assert_contains "$site_out/legal/index.html" "without warranty"
-assert_contains "$index" "/legal/"
+assert_file "$docs/index.html"
+assert_contains "$docs/index.html" "FlatPark documentation"
+assert_file "$docs/project/policies/index.html"
+assert_contains "$docs/project/policies/index.html" "De-listing"
+assert_file "$docs/project/trust/index.html"
+assert_contains "$docs/project/trust/index.html" "extra-data"
+assert_contains "$index" "/docs/project/policies/"
+assert_contains "$index" "/docs/project/trust/"
+assert_file "$docs/packagers/submitting/index.html"
+assert_contains "$docs/packagers/submitting/index.html" "flatpark.yml"
+assert_file "$docs/users/cleanup/index.html"
+assert_contains "$docs/users/cleanup/index.html" "--delete-data"
+assert_contains "$index" "/docs/packagers/submitting/"
+assert_contains "$index" "/docs/users/troubleshooting/"
+assert_file "$docs/project/conduct/index.html"
+assert_contains "$docs/project/conduct/index.html" "Code of conduct"
+assert_contains "$index" "/docs/project/conduct/"
+assert_file "$docs/project/legal/index.html"
+assert_contains "$docs/project/legal/index.html" "no accounts"
+assert_contains "$docs/project/legal/index.html" "without warranty"
+assert_contains "$index" "/docs/project/legal/"
+# Relative .md links become site URLs; links out of docs/ go to GitHub.
+assert_contains "$docs/packagers/playbook/index.html" 'href="/docs/packagers/submitting/"'
+assert_contains "$docs/packagers/solutions/by-stack/index.html" "github.com/flatpark/flatpark/blob/main/registry/"
+# A section index lists its pages; internal/ and specs/ are never published.
+assert_contains "$docs/packagers/index.html" "docs-cards"
+for d in internal specs; do [ ! -e "$docs/$d" ] || { echo "FAIL: docs/$d was published"; exit 1; }; done
+# A translation replaces its page under the locale, with localised links.
+assert_contains "$site_out/zh-Hans/docs/users/setup/index.html" "配置 FlatPark"
+assert_contains "$site_out/zh-Hans/docs/users/setup/index.html" 'href="/zh-Hans/docs/project/trust/"'
+# Markdown sources for agents, and the old content-page URLs redirect.
+assert_file "$docs/users/setup.md"
+assert_contains "$site_out/llms-full.txt" "# Setting up FlatPark"
+assert_contains "$site_out/llms.txt" "/docs/users/setup.md"
+assert_contains "$site_out/_redirects" "/setup/ /docs/users/setup/ 301"
+assert_contains "$site_out/_redirects" "/trust/ /docs/project/trust/ 301"
 
 # Header type-ahead: the dropdown ships on every page (including app pages,
 # which have no grid), and its index is a build artefact of its own.
@@ -152,4 +223,31 @@ assert_contains "$detail" "data-search-meta"
 assert_file "$site_out/search-index.json"
 assert_contains "$site_out/search-index.json" '"id":"io.flatpark.TestOne"'
 assert_contains "$site_out/search-index.json" '"section":"utilities"'
+
+# Collections: a page per collection (both locales), members in config order
+# with unknown ids dropped, one install-all line, the homepage carousel slide, and the
+# backlink on each member's detail page.
+collection="$site_out/collections/testsuite/index.html"
+assert_file "$collection"
+assert_file "$site_out/zh-Hans/collections/testsuite/index.html"
+assert_contains "$collection" "Both test apps together."
+assert_contains "$site_out/zh-Hans/collections/testsuite/index.html" "两个测试应用。"
+assert_contains "$collection" "flatpak install flatpark io.flatpark.TestOne io.flatpark.TestTwo"
+assert_contains "$collection" "Test Three"
+assert_contains "$collection" "The first test app on its own."
+assert_contains "$collection" 'href="/docs/packagers/playbook/"'
+assert_contains "$site_out/zh-Hans/collections/testsuite/index.html" 'href="/zh-Hans/docs/packagers/playbook/"'
+assert_contains "$collection" "unaffiliated with their developers"
+! grep -qF "io.flatpark.Missing" "$collection" || { echo "FAIL: unknown collection member rendered"; exit 1; }
+assert_contains "$index" "data-collection-slide"
+assert_contains "$index" "/collections/testsuite/"
+assert_contains "$index" 'data-sort-tab="collections"'
+assert_contains "$index" "data-collections-panel"
+assert_contains "$index" "data-collection-row"
+assert_file "$site_out/collections/index.html"
+assert_contains "$site_out/collections/index.html" "/collections/testsuite/"
+assert_contains "$detail" "Part of the Test Apps collection (2 apps)"
+assert_contains "$index" "All 2 Test apps, one remote"
+assert_contains "$collection" "All 2 Test apps on"
+assert_contains "$detail_two" "/collections/testsuite/"
 echo "test_gen_site: PASS"

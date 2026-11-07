@@ -10,7 +10,7 @@ build:
 catalog:
   category: AudioVideo
   # Authorized by Subtitle Edit's author in SubtitleEdit/subtitleedit#13889 -
-  # "FlatPark is fine too, thx :)". Row in docs/upstream-approvals.md.
+  # "FlatPark is fine too, thx :)". Row in docs/reference/upstream-approvals.md.
   upstream_approved: true
   tags:
     - Video
@@ -20,7 +20,6 @@ update:
   command: ./resolve-update.sh
 policy:
   proprietary: false
-  extra_data_first: true
   # Matches upstream's own flathub manifest verbatim: subtitle/video files are
   # commonly outside XDG Videos (secondary drives, NAS, sync folders). Portal-
   # mediated single-file access strands auto-renamed saves as hidden .xdp-*

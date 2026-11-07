@@ -1,0 +1,74 @@
+id: io.github.MarcoDotIO.Ycode
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+command: ycode-ide
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Ycode's own UI toolkit draws through SDL 3 (bundled in the release) on
+  # Wayland, or X11 where there is none, with the GPU.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Sound from a simulator device.
+  - --socket=pulseaudio
+  # Swift package dependencies, and the connection to a remote simulator host.
+  - --share=network
+  # git and ssh run on the host with the user's own agent.
+  - --socket=ssh-auth
+  # An IDE is pointed at source trees wherever they already are, and the host
+  # toolchain that builds them must see them at the same paths: a file opened
+  # through the document portal has a sandbox-only path the host's swift and
+  # git can't reach. SwiftPM's scratch files under /tmp are shared the same
+  # way. Declared in flatpark.yml policy.dangerous_permissions.
+  - --filesystem=home
+  - --filesystem=/tmp
+  # Host command bridge: the release's libexec/ycode-host launchers run swift,
+  # sourcekit-lsp, lldb, git, ssh and the other developer tools on the host
+  # with flatpak-spawn --host. No Flatpak runtime ships a Swift toolchain, and
+  # Ycode is built to use the one the user installed (it says what to install
+  # when there is none). Declared in flatpark.yml
+  # policy.dangerous_permissions.
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  - name: ycode
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 ycode-wrapper /app/bin/ycode-ide
+      - install -Dm644 io.github.MarcoDotIO.Ycode.desktop /app/share/applications/io.github.MarcoDotIO.Ycode.desktop
+      - install -Dm644 io.github.MarcoDotIO.Ycode.metainfo.xml /app/share/metainfo/io.github.MarcoDotIO.Ycode.metainfo.xml
+      - install -Dm644 io.github.MarcoDotIO.Ycode.png /app/share/icons/hicolor/512x512/apps/io.github.MarcoDotIO.Ycode.png
+      - install -Dm644 io.github.MarcoDotIO.Ycode.svg /app/share/icons/hicolor/scalable/apps/io.github.MarcoDotIO.Ycode.svg
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: ycode.tar.xz
+        only-arches:
+          - x86_64
+        url: https://github.com/MarcoDotIO/Ycode/releases/download/v1.0.0-beta.2/Ycode-1.0.0-beta.2-x86_64.tar.xz
+        sha256: 52651674ea4263ab1525b048e0ff8d82f436532d8ea4f2883570f3f73c6f4ca3
+        size: 53178832
+      - type: extra-data
+        filename: ycode.tar.xz
+        only-arches:
+          - aarch64
+        url: https://github.com/MarcoDotIO/Ycode/releases/download/v1.0.0-beta.2/Ycode-1.0.0-beta.2-aarch64.tar.xz
+        sha256: d87bbc6f39ca72342ccbbd8ebe01d1a8e47dd4503bc21669d42e47440edeca3a
+        size: 72596772
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: ycode-wrapper
+      - type: file
+        path: io.github.MarcoDotIO.Ycode.desktop
+      - type: file
+        path: io.github.MarcoDotIO.Ycode.metainfo.xml
+      - type: file
+        path: io.github.MarcoDotIO.Ycode.png
+      - type: file
+        path: io.github.MarcoDotIO.Ycode.svg

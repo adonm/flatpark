@@ -2,8 +2,10 @@
 import Base from '../../layouts/Base.astro';
 import Topbar from '../../components/Topbar.astro';
 import Featured from '../../components/Featured.astro';
+import CollectionRow from '../../components/CollectionRow.astro';
 import AppCard from '../../components/AppCard.astro';
 import { loadApps, loadCatalog } from '../../lib/data.mjs';
+import { loadCollections } from '../../lib/collections.mjs';
 import { localeOnlyPaths } from '../../i18n/paths.mjs';
 import { getLangFromUrl, localizePath, useTranslations } from '../../i18n';
 
@@ -15,10 +17,27 @@ const t = useTranslations(lang);
 
 const { repo } = loadCatalog();
 const apps = loadApps();
-// Default order: newest listing first. What's new *here* is the front page's
-// job; "recently updated" tracks upstream release dates, which is a different
-// question and stays one dropdown pick away.
-const ordered = [...apps].sort((a, b) => (b.added || '').localeCompare(a.added || ''));
+const collections = loadCollections(apps);
+// The tab shows the first few; the rest are a click away on /collections/.
+const HOME_COLLECTIONS = 4;
+// Default order: most new installs in the last 30 days first, the way
+// Flathub's front page leads with Popular. New (when *we* listed it) and Updated (upstream's release
+// date) are the next two tabs, and Approved narrows the grid to the
+// blue-shield apps. Install counts are optional (the build reads them
+// best-effort), so without them the page opens on New instead.
+const hasStats = apps.some((a) => a.stats);
+const byAdded = (a, b) => (b.added || '').localeCompare(a.added || '');
+const byInstalls30 = (a, b) =>
+  (b.stats?.installs30 ?? 0) - (a.stats?.installs30 ?? 0) || a.name.localeCompare(b.name);
+const ordered = [...apps].sort(hasStats ? byInstalls30 : byAdded);
+const tabs = [
+  ...(hasStats ? [{ mode: 'popular', label: t('apps.tab.popular') }] : []),
+  { mode: 'added', label: t('apps.tab.added') },
+  { mode: 'updated', label: t('apps.tab.updated') },
+  { mode: 'approved', label: t('apps.tab.approved') },
+  // Not an order: swaps the grid for the collection rows (see Base.astro).
+  ...(collections.length ? [{ mode: 'collections', label: t('apps.tab.collections') }] : []),
+];
 // Hero stat: developer approvals are the one claim on this page we cannot issue
 // ourselves, so it is counted from the registry rather than written into copy.
 const approvedCount = apps.filter((a) => a.upstreamApproved).length;
@@ -62,7 +81,8 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
             </li>
           </ul>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a href={localizePath('/setup/', lang)} class="inline-flex h-11 items-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark">{t('home.hero.setup')}</a>
+            <a href={localizePath('/docs/users/setup/', lang)} class="inline-flex h-11 items-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark">{t('home.hero.setup')}</a>
+            <a href={localizePath('/docs/users/rpak/', lang)} class="inline-flex h-11 items-center rounded-full bg-ink px-6 text-sm font-semibold text-canvas shadow-sm transition hover:opacity-85">{t('home.hero.rpak')}</a>
           </div>
         </div>
         <Featured apps={apps} />
@@ -74,7 +94,7 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
       <h2 class="sr-only">{t('apps.all')}</h2>
       <!--
         The catalog controls follow you down the grid: 51 cards is several
-        screens, and sort is useless once it has scrolled away. It parks under
+        screens, and the order tabs are useless once it has scrolled away. It parks under
         the header (--topbar-h) rather than at the top of the viewport, and the
         negative margin lets its background span the container's gutters.
       -->
@@ -82,20 +102,27 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
         class="sticky top-[var(--topbar-h)] z-10 -mx-5 mt-4 flex flex-wrap items-center justify-between gap-3
           border-t border-line bg-canvas/90 px-5 py-3 backdrop-blur"
       >
+        <!--
+          Flathub-style tabs rather than a dropdown: three orders, all one
+          click away, and the active one is visible without opening anything.
+          On a phone the tabs size to their labels and the track scrolls
+          sideways if they still do not fit.
+        -->
+        <div role="tablist" aria-label={t('apps.sort.label')} class="inline-grid max-w-full grid-flow-col auto-cols-max overflow-x-auto rounded-lg border border-line bg-surface p-0.5 text-sm sm:auto-cols-fr">
+          {tabs.map((tab, i) => (
+            <button
+              type="button"
+              role="tab"
+              class:list={['seg', i === 0 && 'is-active']}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              data-sort-tab={tab.mode}
+            >{tab.label}</button>
+          ))}
+        </div>
         <a
           href={localizePath('/apps/', lang)}
           class="inline-flex h-9 items-center rounded-lg border border-line bg-surface px-3 text-sm font-semibold transition hover:border-brand"
         >{t('apps.browse')}</a>
-        <select
-          data-sort
-          aria-label={t('apps.sort.label')}
-          class="h-9 rounded-lg border border-line bg-surface px-3 text-sm font-semibold outline-none focus:border-brand"
-        >
-          <option value="added" selected>{t('apps.sort.added')}</option>
-          <option value="updated">{t('apps.sort.recent')}</option>
-          <option value="approved">{t('apps.sort.approved')}</option>
-          <option value="name">{t('apps.sort.name')}</option>
-        </select>
       </div>
 
       <!--
@@ -105,6 +132,19 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
       <div data-grid class="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4 pt-0.5">
         {ordered.map((app) => <AppCard app={app} />)}
       </div>
+      {collections.length > 0 && (
+        <div data-collections-panel hidden class="min-h-[28rem] pt-0.5">
+          <div class="grid gap-4">
+            {collections.slice(0, HOME_COLLECTIONS).map((collection) => <CollectionRow collection={collection} />)}
+          </div>
+          <div class="mt-6 flex justify-center">
+            <a
+              href={localizePath('/collections/', lang)}
+              class="inline-flex h-11 items-center rounded-full border border-line bg-surface px-6 text-sm font-semibold transition hover:border-brand"
+            >{t('collections.all')} &rarr;</a>
+          </div>
+        </div>
+      )}
       <!-- Folded to the first five rows until asked; see the fold in Base.astro. -->
       <div class="mt-6 flex justify-center">
         <button
