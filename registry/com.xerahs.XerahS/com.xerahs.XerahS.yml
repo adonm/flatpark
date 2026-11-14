@@ -26,6 +26,7 @@ finish-args:
   # grant there is no socket in the sandbox and recording fails with
   # "pipewiresrc: Failed to connect". (Its ffmpeg path needs `-f pipewire`,
   # which no mainline FFmpeg build has, so the runtime's GStreamer is what runs.)
+  # Declared in policy.dangerous_permissions.
   - --filesystem=xdg-run/pipewire-0
   # The recorder's "system audio" and "microphone" options use pulsesrc.
   - --socket=pulseaudio
@@ -59,9 +60,16 @@ modules:
         filename: xerahs.tar.gz
         only-arches:
           - x86_64
-        url: https://github.com/ShareX/XerahS/releases/download/v0.25.5/XerahS-0.25.5-linux-x64.tar.gz
-        sha256: 77efd25db2356d3510a0d532c3c5e8a3fbb3d4999e02f1828292c8a582134f1a
-        size: 218315939
+        url: https://github.com/ShareX/XerahS/releases/download/v0.34.0/XerahS-0.34.0-linux-x64.tar.gz
+        sha256: 3aa030ce33c563c8efbf9f3d50f9b5e1977a85100175792aafc343035af90a29
+        size: 200606048
+      - type: extra-data
+        filename: xerahs.tar.gz
+        only-arches:
+          - aarch64
+        url: https://github.com/ShareX/XerahS/releases/download/v0.34.0/XerahS-0.34.0-linux-arm64.tar.gz
+        sha256: c1a5173adee1db63974b68b37d6813628fdd890891864aa5d065f44c004b538d
+        size: 197369417
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

@@ -1,8 +1,13 @@
 // Batch-check the external URLs the site hotlinks (screenshots, homepage,
 // help, license, source). Reads enriched apps/<id>.json from the data dir.
+// LINK_CHECK_EXTRA_DATA names a TSV of extra-data pins (app, url, size), one
+// per line, which scripts/check-links.sh lists from the manifests: each must
+// answer and still be the pinned size, or installs of that app fail.
 // Human summary by default, --json for machine output. Exits 1 if any link
-// is broken so CI / a remediation job can act on it.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+// is broken so CI / a remediation job can act on it. LINK_CHECK_JSON_OUT also
+// writes the JSON report to that file, next to the human summary — the
+// workflows want both, and stdout is shared with the data regeneration.
+import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dataDir = process.env.FLATPARK_DATA_DIR || 'public';
@@ -33,12 +38,28 @@ const NET_ERRORS = new Set([
 ]);
 const RETRIES = Number(process.env.LINK_CHECK_RETRIES || 2);
 
+// Certificate errors: the server is up and answering, but the TLS handshake is
+// refused. Never waived on their own — only for SOFT_OK_HOSTS below.
+const TLS_ERRORS = new Set([
+  'CERT_HAS_EXPIRED',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+]);
+
 // Hosts whose links are verified by hand and must not fail the build on a
-// NET_ERRORS code — a vendor site that answers in a browser but is not
-// consistently routable from GitHub's runners. Only transport errors are
-// waived: an HTTP 404 or 500 from these hosts is still a broken link. The list
-// is empty today; LINK_CHECK_SOFT_OK_HOSTS appends to it (used by the tests).
+// NET_ERRORS or TLS_ERRORS code — a vendor site that answers in a browser but
+// is not consistently routable from GitHub's runners, or that lets its
+// certificate lapse. Only transport errors are waived: an HTTP 404 or 500 from
+// these hosts is still a broken link.
+// LINK_CHECK_SOFT_OK_HOSTS appends to it (used by the tests).
 const SOFT_OK_HOSTS = new Set([
+  // Analog Devices (com.analog.LTspice): times out from GitHub's runners but
+  // answers 200 in a browser (#830).
+  'www.analog.com',
+  'ez.analog.com',
+  // TRF3 (br.jus.cnj.PJeOfficePro): the court's site serves an expired
+  // certificate; the pages are still the app's only homepage and docs (#878).
+  'pjeoffice.trf3.jus.br',
   ...(process.env.LINK_CHECK_SOFT_OK_HOSTS || '').split(',').filter(Boolean),
 ]);
 
@@ -66,6 +87,13 @@ function collect() {
     if (app.license?.url) add('license', app.license.url);
     add('source', app.sourceUrl);
   }
+  const pinsFile = process.env.LINK_CHECK_EXTRA_DATA;
+  if (pinsFile && existsSync(pinsFile)) {
+    for (const line of readFileSync(pinsFile, 'utf8').split('\n')) {
+      const [app, url, size] = line.split('\t');
+      if (app && /^https?:\/\//.test(url || '')) urls.push({ app, type: 'extra-data', url, size: Number(size) });
+    }
+  }
   const seen = new Set();
   return urls.filter((u) => {
     const k = `${u.app}|${u.type}|${u.url}`;
@@ -75,14 +103,28 @@ function collect() {
   });
 }
 
-async function request(method, url) {
+async function request(method, url, headers) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
   try {
-    return await fetch(url, { method, redirect: 'follow', signal: ctrl.signal });
+    return await fetch(url, { method, headers, redirect: 'follow', signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
+}
+
+// An extra-data pin is downloaded by flatpak itself, so nothing a browser
+// would clear applies: a 403 is a failed install, and the payload must still be
+// the size the manifest pins (flatpak checks it before the sha256), which also
+// catches an upstream re-uploading different bytes under the same URL. Only the
+// headers are read; a GET fallback is cancelled before the body comes down.
+function judgePin(entry, res) {
+  if (!res.ok) return { ...entry, status: res.status, ok: false };
+  const len = res.headers.get('content-length');
+  if (len !== null && entry.size && Number(len) !== entry.size) {
+    return { ...entry, status: `size ${len}, pinned ${entry.size}`, ok: false };
+  }
+  return { ...entry, status: res.status, ok: true };
 }
 
 async function probe(entry) {
@@ -92,9 +134,12 @@ async function probe(entry) {
     // every HEAD while serving the same URL fine over GET — CodeBuddy's site
     // does exactly this). So on a missing HEAD or any non-2xx HEAD, confirm with
     // a GET before believing it. A genuinely dead URL still fails the GET.
-    let res = await request('HEAD', entry.url).catch(() => null);
+    // fetch asks for gzip/br by default, and a CDN that compresses (jsDelivr)
+    // then reports the compressed length; a pin is compared uncompressed.
+    const headers = entry.type === 'extra-data' ? { 'accept-encoding': 'identity' } : undefined;
+    let res = await request('HEAD', entry.url, headers).catch(() => null);
     if (!res || !res.ok) {
-      res = await request('GET', entry.url);
+      res = await request('GET', entry.url, headers);
     }
     // A 403 that survives the GET fallback means the host answered but refuses
     // automated clients — Cloudflare-style bot/region gating that a real browser
@@ -104,6 +149,11 @@ async function probe(entry) {
     // open in the user's browser. Keep it a hard failure for screenshots: those
     // are hotlinked into our own pages, so a 403 there is a genuinely broken
     // image, not a false positive.
+    if (entry.type === 'extra-data') {
+      const out = judgePin(entry, res);
+      try { await res.body?.cancel(); } catch {}
+      return out;
+    }
     if (res.status === 403 && entry.type !== 'screenshot') {
       try { await res.body?.cancel(); } catch {}
       return { ...entry, status: 403, ok: true, warn: true };
@@ -124,7 +174,8 @@ async function check(entry) {
     await sleep(500 * 2 ** (i - 1));
     res = await probe(entry);
   }
-  if (!res.ok && NET_ERRORS.has(res.error) && SOFT_OK_HOSTS.has(hostOf(entry.url))) {
+  const waivable = NET_ERRORS.has(res.error) || TLS_ERRORS.has(res.error);
+  if (!res.ok && waivable && SOFT_OK_HOSTS.has(hostOf(entry.url))) {
     return { ...entry, status: res.error, ok: true, warn: true };
   }
   return res;
@@ -149,8 +200,10 @@ const results = await pool(entries, CONCURRENCY, check);
 const broken = results.filter((r) => !r.ok);
 const warned = results.filter((r) => r.warn);
 
+const report = { checked: results.length, broken: broken.length, warned: warned.length, results };
+if (process.env.LINK_CHECK_JSON_OUT) writeFileSync(process.env.LINK_CHECK_JSON_OUT, JSON.stringify(report, null, 2));
 if (asJson) {
-  console.log(JSON.stringify({ checked: results.length, broken: broken.length, warned: warned.length, results }, null, 2));
+  console.log(JSON.stringify(report, null, 2));
 } else {
   console.log(`[check-links] checked ${results.length} link(s)`);
   if (warned.length > 0) {

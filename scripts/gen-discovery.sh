@@ -17,9 +17,14 @@ cat > "$repo_file" <<EOF
 Title=$REPO_TITLE
 Url=$REPO_URL
 Homepage=$REPO_HOMEPAGE
+Icon=$REPO_ICON
 Comment=$REPO_COMMENT
 GPGKey=$gpgkey_b64
 EOF
+
+# An extension is a runtime ref, so a flatpakref to it has to say so.
+is_runtime=false
+[ -z "$APP_EXTENDS" ] || is_runtime=true
 
 # SuggestRemoteName pins the auto-added remote to our canonical name; without
 # it flatpak derives one from the ref (e.g. "tabby-origin") and every
@@ -33,7 +38,7 @@ Url=$REPO_URL
 SuggestRemoteName=$REMOTE_NAME
 RuntimeRepo=$RUNTIME_REPO_URL
 GPGKey=$gpgkey_b64
-IsRuntime=false
+IsRuntime=$is_runtime
 EOF
 cp "$repo_file" "$OUT_DIR/flatpark.flatpakrepo"
 cp "$ref_file" "$OUT_DIR/$APP_ID.flatpakref"

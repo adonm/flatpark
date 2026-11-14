@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import YAML from 'yaml';
 import { XMLParser } from 'fast-xml-parser';
 import sharp from 'sharp';
+import { requiresOf, installWith } from '../src/lib/requires.mjs';
+import { starsRepoOf, fetchStars } from '../src/lib/stars.mjs';
 
 // Curated top-level sections. Raw AppStream/descriptor categories map into this
 // fixed set so the catalog filter stays small no matter how many raw categories
@@ -123,6 +125,70 @@ const editorPicks = (() => {
     return [];
   }
 })();
+
+// Install counts from the daily rollup (scripts/rollup-install-stats.mjs), an
+// http(s) URL or a local path. Best-effort like everything here: no stats just
+// means no install row and no "Popular" order, never a failed build.
+const installStats = await (async () => {
+  const src = process.env.FLATPARK_STATS_URL || '';
+  if (!src) return null;
+  try {
+    if (!/^https?:/.test(src)) return JSON.parse(readFileSync(src, 'utf8'));
+    const res = await fetch(src, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn(`[enrich] install stats unavailable (${src}): ${e.message}`);
+    return null;
+  }
+})();
+
+// Upstream GitHub stars (src/lib/stars.mjs), the other Popular order. Looked
+// up once for the whole catalog before the per-app pass, since one aliased
+// GraphQL query covers every repository. Needs a token (GH_TOKEN or
+// GITHUB_TOKEN; the publish workflow passes github.token) because GraphQL
+// takes no anonymous calls. Best-effort like the install counts: no token or a
+// failed lookup means no star row and no Stars order, never a failed build.
+// FLATPARK_STARS_FILE, a local {"owner/name": count} JSON, stands in for the
+// API (tests, offline builds) and wins over a token.
+const starsByApp = await (async () => {
+  const starsFile = process.env.FLATPARK_STARS_FILE || '';
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  if ((!starsFile && !token) || !existsSync(appsDir)) return null;
+  const wanted = {};
+  for (const f of readdirSync(appsDir).filter((x) => x.endsWith('.json'))) {
+    try {
+      const base = JSON.parse(readFileSync(join(appsDir, f), 'utf8'));
+      const fyPath = join(base._srcDir || '', 'flatpark.yml');
+      const fy = base._srcDir && existsSync(fyPath) ? YAML.parse(readFileSync(fyPath, 'utf8')) : null;
+      const repo = starsRepoOf(fy, base.sourceUrl);
+      if (repo) wanted[base.id] = repo;
+    } catch {
+      // the per-app pass reports a broken file; here it just has no stars
+    }
+  }
+  try {
+    const counts = starsFile
+      ? Object.fromEntries(
+          Object.entries(JSON.parse(readFileSync(starsFile, 'utf8'))).map(([repo, count]) => [
+            repo.toLowerCase(),
+            { repo, count: Number(count) },
+          ]),
+        )
+      : await fetchStars(Object.values(wanted), token);
+    const out = {};
+    for (const [id, repo] of Object.entries(wanted)) {
+      const hit = counts[repo.toLowerCase()];
+      if (hit) out[id] = hit;
+      else console.warn(`[enrich] ${id}: no GitHub repository ${repo} for stars`);
+    }
+    return out;
+  } catch (e) {
+    console.warn(`[enrich] upstream stars unavailable: ${e.message}`);
+    return null;
+  }
+})();
+
 // Ids seen during enrichment, to flag stale picks (removed/renamed apps).
 const enrichedIds = new Set();
 
@@ -264,7 +330,7 @@ function blocksFrom(descChildren) {
       if (runs.length) blocks.push({ type: 'p', runs });
     } else if ('ul' in node || 'ol' in node) {
       const items = toArray(node.ul || node.ol)
-        .filter((c) => c && 'li' in c)
+        .filter((c) => c && 'li' in c && isSourceLang(c)) // gettext puts translated <li>s inside the source <ul>
         .map((c) => orderedRuns(c.li))
         .filter((runs) => runs.length);
       if (items.length) blocks.push({ type: 'list', items });
@@ -318,6 +384,34 @@ function releaseExtras(rawXml) {
   return out;
 }
 
+function readDescriptor(dir) {
+  const path = join(dir || '', 'flatpark.yml');
+  return existsSync(path) ? YAML.parse(readFileSync(path, 'utf8')) || {} : null;
+}
+
+// The remote FlatPark's install commands name, from the catalog gen-apps-json.sh
+// wrote next to the app files.
+let catalogRemote;
+function remoteName() {
+  catalogRemote ??= JSON.parse(readFileSync(join(dataDir, 'catalog.json'), 'utf8')).repo?.remoteName;
+  if (!catalogRemote) {
+    console.error(`[enrich] ${join(dataDir, 'catalog.json')} names no remote`);
+    process.exit(1);
+  }
+  return catalogRemote;
+}
+
+function parentOf(srcDir, id) {
+  const dir = join(srcDir, '..', id);
+  const fy = readDescriptor(dir);
+  const manifest = fy?.build?.manifest ? join(dir, fy.build.manifest) : '';
+  if (!manifest || !existsSync(manifest)) {
+    console.error(`[enrich] the parent ${id} of ${srcDir} is not in the registry`);
+    process.exit(1);
+  }
+  return { name: fy.name || id, manifest: parseManifest(manifest) };
+}
+
 function parseManifest(path) {
   const raw = readFileSync(path, 'utf8');
   try {
@@ -343,6 +437,98 @@ function parseLicense(raw) {
   if (bare) return { label: bare[1] === 'proprietary' ? 'Proprietary' : bare[1], url };
   // Plain or compound SPDX expression: prettify the proprietary ref inline.
   return { label: cleaned.replace(/LicenseRef-proprietary\b/g, 'Proprietary'), url };
+}
+
+// Packaging transparency: what the package does around (or to) the vendor's
+// build, shown as a level badge and a per-item list. Each kind has a fixed
+// level; `support-files` is derived from the manifest, the rest are declared
+// under `packaging:` in flatpark.yml (scripts/audit-descriptor.mjs fails a
+// descriptor whose scripts show a kind it does not declare).
+export const PACKAGING_KINDS = {
+  'support-files': 'adapted',
+  'seeded-config': 'adapted',
+  'injected-code': 'modified',
+  'file-change': 'modified',
+  'runtime-install': 'modified',
+  'host-command': 'reduced',
+  'sandbox-off': 'reduced',
+};
+const PACKAGING_LEVELS = ['unmodified', 'adapted', 'modified', 'reduced'];
+
+// The extra-data/archive sources of every module, flattened.
+function manifestSources(m) {
+  const out = [];
+  const walk = (mods) => {
+    for (const mod of toArray(mods)) {
+      if (!mod || typeof mod !== 'object') continue;
+      for (const src of toArray(mod.sources)) if (src && typeof src === 'object' && src.url) out.push(src);
+      walk(mod.modules);
+    }
+  };
+  walk(m.modules);
+  return out;
+}
+
+// Where a download comes from, coarse enough that one project's per-arch
+// builds compare equal: host, plus owner/repo on github.com.
+function originKey(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'github.com') return `github.com/${u.pathname.split('/').slice(1, 3).join('/')}`;
+    return u.hostname;
+  } catch {
+    return url;
+  }
+}
+
+// Components the package adds next to the vendor's build: FlatPark prebuilt
+// stacks (appimage-tools only unpacks at install time, so it is not one) and
+// extra-data from a different origin than the main payload.
+// The main payload is whatever the resolver manages (between the BEGIN/END
+// MANAGED EXTRA-DATA markers in the manifest text); without markers, the first
+// non-prebuilt extra-data source.
+export function supportFiles(m, rawText = '') {
+  const names = new Set();
+  const srcs = manifestSources(m);
+  const prebuilt = /github\.com\/flatpark\/prebuilt\/releases\/download\/([A-Za-z0-9._-]+?)-v\d+\//;
+  const managed = /# BEGIN MANAGED EXTRA-DATA([\s\S]*?)# END MANAGED EXTRA-DATA/.exec(rawText);
+  const mainOrigins = new Set(
+    managed
+      ? [...managed[1].matchAll(/url:\s*(\S+)/g)].map((x) => originKey(x[1].replace(/^["']|["']$/g, '')))
+      : [srcs.find((s) => s.type === 'extra-data' && !prebuilt.test(s.url))?.url].filter(Boolean).map(originKey),
+  );
+  for (const s of srcs) {
+    const pb = prebuilt.exec(s.url);
+    if (pb) {
+      if (pb[1] !== 'appimage-tools') names.add(pb[1]);
+      continue;
+    }
+    if (s.type === 'extra-data' && mainOrigins.size && !mainOrigins.has(originKey(s.url))) {
+      names.add(String(s.filename || s.url.split('/').pop()).replace(/(\.tar)?\.(gz|xz|zst|bz2|zip|deb|ttc|ttf|tgz|txz)$/, '').replace(/[-_](x86_64|aarch64|amd64|arm64)$/, ''));
+    }
+  }
+  return [...names].sort();
+}
+
+// Declared entries + the derived support-files entry -> { level, items }.
+// `detail` may be a string (English) or a { en, zh-Hans } map.
+export function packagingOf(declared, derivedSupport) {
+  const items = [];
+  for (const e of toArray(declared)) {
+    if (!e || typeof e !== 'object' || !PACKAGING_KINDS[e.kind]) {
+      console.warn(`[enrich] unknown packaging entry: ${JSON.stringify(e)}`);
+      continue;
+    }
+    const detail = typeof e.detail === 'object' && e.detail ? e.detail : { en: e.detail || '' };
+    items.push({ kind: e.kind, level: PACKAGING_KINDS[e.kind], detail });
+  }
+  if (derivedSupport.length && !items.some((i) => i.kind === 'support-files')) {
+    items.push({ kind: 'support-files', level: 'adapted', detail: null, value: derivedSupport.join(', ') });
+  }
+  const rank = (l) => PACKAGING_LEVELS.indexOf(l);
+  items.sort((a, b) => rank(b.level) - rank(a.level));
+  const level = items.reduce((acc, i) => (rank(i.level) > rank(acc) ? i.level : acc), 'unmodified');
+  return { level, items };
 }
 
 // Map a single Flatpak finish-arg to a human label + risk level + group.
@@ -407,10 +593,16 @@ function describePermission(arg) {
         'host-os': ['filesystem.host_os', 'Host OS files', 'warning', 'Filesystem'],
         'host-etc': ['filesystem.host_etc', 'Host /etc', 'warning', 'Filesystem'],
         home: ['filesystem.home', 'Home folder', 'caution', 'Filesystem'],
+        // A grant on the path, but what it opens is the PipeWire daemon: every
+        // camera and other apps' video streams, with no portal asking first.
+        'xdg-run/pipewire-0': ['filesystem.pipewire', 'Direct PipeWire access', 'warning', 'Devices',
+          'Can open any camera and other apps\' video streams, including screen shares, without asking'],
       };
       const m = map[v];
       // The read-only qualifier is a flag rather than part of the label: the
       // site wraps the translated label with it, since word order differs.
+      // :ro doesn't restrict a socket, so the PipeWire grant takes no qualifier.
+      if (m && m[0] === 'filesystem.pipewire') return base(m[0], m[1], m[2], m[3], m[4]);
       if (m) return { ...base(m[0], m[1] + (readOnly ? ' (read-only)' : ''), m[2], m[3]), readOnly };
       return base('filesystem.other', `Files: ${value}`, 'caution', 'Filesystem');
     }
@@ -457,15 +649,25 @@ async function enrichOne(file) {
   out.proprietary = false;
   out.maintainer = null;
   out.permissions = [];
+  let supportDerived = [];
+  let packagingDeclared = [];
 
   // 1. Flatpak manifest -> permissions, runtime, proprietary tag
   try {
     if (base._manifest && existsSync(base._manifest)) {
       const m = parseManifest(base._manifest);
-      out.runtime = m.runtime || '';
-      out.runtimeVersion = m['runtime-version'] ? String(m['runtime-version']) : '';
+      // An extension has no permissions or runtime of its own: it runs inside
+      // its parent with all of the parent's. A page that can't say so must
+      // not say "fully sandboxed", so a missing parent stops the build.
+      const fy = readDescriptor(srcDir);
+      const parent = fy?.build?.extends ? parentOf(srcDir, fy.build.extends) : null;
+      const host = parent ? parent.manifest : m;
+      if (parent) out.parent = { id: fy.build.extends, name: parent.name };
+      out.runtime = host.runtime || '';
+      out.runtimeVersion = host['runtime-version'] ? String(host['runtime-version']) : '';
       out.command = m.command || '';
-      out.permissions = toArray(m['finish-args']).map(describePermission).filter(Boolean);
+      out.permissions = toArray(host['finish-args']).map(describePermission).filter(Boolean);
+      supportDerived = supportFiles(m, readFileSync(base._manifest, 'utf8'));
       if (toArray(m.tags).includes('proprietary')) out.proprietary = true;
     }
   } catch (e) {
@@ -529,10 +731,19 @@ async function enrichOne(file) {
       if (fy.policy?.proprietary) out.proprietary = true;
       if (fy.build?.mode) out.buildMode = fy.build.mode;
       out.upstreamApproved = !!fy.catalog?.upstream_approved; // upstream developer consented to this listing
+      packagingDeclared = fy.packaging;
+      out.requires = requiresOf(fy);
     }
   } catch (e) {
     console.warn(`[enrich] ${base.id}: flatpark.yml parse failed: ${e.message}`);
   }
+
+  out.packaging = packagingOf(packagingDeclared, supportDerived);
+  out.requires = out.requires || [];
+  if (out.parent && !out.requires.some((r) => r.ref === out.parent.id)) {
+    out.requires.push({ remote: remoteName(), ref: out.parent.id, name: out.parent.name });
+  }
+  out.installCmd = installWith(base.installCmd, [out]);
 
   out.screenshots = await cacheScreenshots(out.id, out.screenshots);
 
@@ -552,6 +763,26 @@ async function enrichOne(file) {
   out.updated = out.releases?.[0]?.date || gitUpdated(srcDir) || '';
   // Listing date — when we added the app, never an upstream date.
   out.added = gitAdded(srcDir);
+  // Only new installs in the last 30 days are shown, and Popular sorts by
+  // them: updates count the same people again every release (rewarding apps
+  // that ship daily), and all-time figures only reach back to when counting
+  // started (2026-10-04), which shortchanges apps listed before it. totals.json
+  // keeps downloads/active for maintainers.
+  // An app with no row yet (listed after the last rollup) counts as zero —
+  // but only once anything has been counted at all (`since` set). Before the
+  // first counted day, totals.json exists but is empty, and a "0" on every
+  // page would read as "nobody uses this", not "not measured yet".
+  if (installStats?.since && installStats.apps) {
+    const s = installStats.apps[out.id];
+    out.stats = {
+      installs30: s?.installs30 ?? 0,
+      since: installStats.since,
+    };
+  }
+  // No row means "not measured" (no repository, or the lookup did not run),
+  // which the Stars order sorts after every counted app rather than as 0.
+  const stars = starsByApp?.[out.id];
+  if (stars) out.upstreamStars = stars;
 
   writeFileSync(path, JSON.stringify(out, null, 2) + '\n');
   return out.id;

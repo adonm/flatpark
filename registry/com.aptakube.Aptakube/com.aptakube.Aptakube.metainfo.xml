@@ -9,7 +9,8 @@
     <name>Aptakube</name>
   </developer>
   <url type="homepage">https://aptakube.com</url>
-  <url type="bugtracker">https://github.com/aptakube/aptakube/issues</url>
+  <url type="bugtracker">https://github.com/flatpark/flatpark/issues</url>
+  <url type="help">https://github.com/flatpark/flatpark/issues</url>
   <description>
     <p>This is a community package of Aptakube, maintained independently and unaffiliated with the Aptakube project. It repackages the official upstream Linux build unmodified. Aptakube is proprietary software; using it means accepting the vendor's own licence terms.</p>
     <p>Aptakube is a desktop client for Kubernetes. You can connect to multiple clusters, manage workloads, view logs, compare resources, and a lot more. It talks to the Kubernetes API directly, so no kubectl installation is required for browsing or managing resources.</p>
@@ -45,6 +46,36 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.22.3" date="2026-11-04">
+      <description></description>
+    </release>
+    <release version="1.22.2" date="2026-11-03">
+      <description></description>
+    </release>
+    <release version="1.22.1" date="2026-10-28">
+      <description></description>
+    </release>
+    <release version="1.22.0" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="1.21.6" date="2026-10-21">
+      <description></description>
+    </release>
+    <release version="1.21.5" date="2026-10-19">
+      <description></description>
+    </release>
+    <release version="1.21.4" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="1.21.3" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="1.21.2" date="2026-10-06">
+      <description></description>
+    </release>
+    <release version="1.21.1" date="2026-09-30">
+      <description></description>
+    </release>
     <release version="1.21.0" date="2026-09-28">
       <description></description>
     </release>

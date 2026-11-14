@@ -1,0 +1,179 @@
+id: io.github.pedrohqb.Tessera
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: tessera
+separate-locales: false
+build-options:
+  no-debuginfo: true
+# The same permissions as Tessera's own manifest
+# (https://github.com/pedrohqb/tessera/blob/main/flatpak/io.github.pedrohqb.Tessera.yml).
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  # x11, not fallback-x11: the vendors' tools that come with their driver
+  # extensions (SerproID's JavaFX app, SafeSign's Token Administration) draw
+  # only through X11, which needs the X socket (XWayland) even when Tessera
+  # itself is on Wayland. Extensions have no permissions of their own.
+  - --socket=x11
+  - --device=dri
+  # The token drivers talk to the host's pcscd, which owns the USB readers.
+  - --socket=pcsc
+  # Cloud certificates (SerproID) and revocation checks by vendor tools.
+  - --share=network
+  # The drivers' servers: $XDG_RUNTIME_DIR/tessera/<driver>.
+  - --filesystem=xdg-run/tessera:create
+  # The host's p11-kit module directory, where Tessera writes one
+  # "remote:" file per driver so the host's p11-kit server (and native
+  # apps) serve them. Only files named tessera-*.module are touched.
+  - --filesystem=xdg-config/pkcs11:create
+  # Papers' config folder, where Tessera makes the small NSS database poppler
+  # finds first (mozilla/firefox/tessera.default; see paths.rs). No :create:
+  # the folder exists once Papers has run, and Tessera does not make folders
+  # for apps that are not installed.
+  - --filesystem=~/.var/app/org.gnome.Papers/config
+  # The same for Okular, which signs through poppler too.
+  - --filesystem=~/.var/app/org.kde.okular/config
+  # The Firefox Flatpak's profiles (Firefox 147+ keeps them under config/,
+  # older releases under .mozilla/), so "Set up" can register the module in
+  # each profile's NSS database. Only pkcs11.txt changes.
+  - --filesystem=~/.var/app/org.mozilla.firefox/config/mozilla/firefox
+  - --filesystem=~/.var/app/org.mozilla.firefox/.mozilla/firefox
+  # The NSS databases of the Chromium-based browsers, where "Set up"
+  # registers the module. Since Chromium 146 the database is
+  # $XDG_DATA_HOME/pki/nssdb (in Flatpak, the data folder below), unless the
+  # older ~/.pki/nssdb exists: for Chromium, which may use the home folder,
+  # the real ~/.pki/nssdb; for the others, the one --persist=.pki keeps. No
+  # :create: the browser makes its database itself, and Tessera does not make
+  # folders for browsers that are not installed.
+  - --filesystem=~/.pki/nssdb
+  - --filesystem=~/.var/app/org.chromium.Chromium/data/pki/nssdb
+  - --filesystem=~/.var/app/com.brave.Browser/.pki/nssdb
+  - --filesystem=~/.var/app/com.brave.Browser/data/pki/nssdb
+  - --filesystem=~/.var/app/com.google.Chrome/.pki/nssdb
+  - --filesystem=~/.var/app/com.google.Chrome/data/pki/nssdb
+  - --filesystem=~/.var/app/com.microsoft.Edge/.pki/nssdb
+  - --filesystem=~/.var/app/com.microsoft.Edge/data/pki/nssdb
+  # Thunderbird's Flatpaks (Mozilla's; the ESR and the old ID too): their
+  # profiles (--persist=.thunderbird, or the XDG folder in newer releases),
+  # so "Set up" can register the module in each profile's NSS database.
+  # Only pkcs11.txt changes.
+  - --filesystem=~/.var/app/org.mozilla.thunderbird/.thunderbird
+  - --filesystem=~/.var/app/org.mozilla.thunderbird/config/thunderbird
+  - --filesystem=~/.var/app/org.mozilla.thunderbird_esr/.thunderbird
+  - --filesystem=~/.var/app/org.mozilla.thunderbird_esr/config/thunderbird
+  - --filesystem=~/.var/app/org.mozilla.Thunderbird/.thunderbird
+  # Evolution's Flatpak, when it has no ~/.pki/nssdb to share: its own
+  # database, where "Set up" only removes a duplicate module.
+  - --filesystem=~/.var/app/org.gnome.Evolution/data/pki/nssdb
+  # LibreOffice's Flatpak: its settings (registrymodifications.xcu, where
+  # "Set up" writes the certificate path, CertDir) and its data folder,
+  # where Tessera makes the empty NSS database it points to. No :create.
+  - --filesystem=~/.var/app/org.libreoffice.LibreOffice/config/libreoffice
+  - --filesystem=~/.var/app/org.libreoffice.LibreOffice/data
+  # JSignPdf's Flatpak: its config folder, where "Set up" writes
+  # jsignpdf/pkcs11.cfg (p11-kit-client.so and the slot of Tessera's tokens)
+  # and the keystore type in jsignpdf/config.properties.
+  - --filesystem=~/.var/app/io.github.intoolswetrust.JSignPdf/config
+  # Master PDF Editor's Flatpak: its config folder, where "Set up" writes
+  # the PKCS#11 provider in Code Industry/Master PDF Editor 5.conf.
+  - --filesystem=~/.var/app/net.code_industry.MasterPDFEditor/config
+  # Native apps (installed from the distribution), which load
+  # p11-kit-proxy.so from their NSS database: the native Firefox's profiles
+  # (Firefox 147+ under ~/.config, older releases under ~/.mozilla) and the
+  # database the native Chromium-based browsers share since Chromium 146
+  # (the older ~/.pki/nssdb is above). Only pkcs11.txt changes. No :create:
+  # Tessera does not make folders for apps that are not installed.
+  - --filesystem=~/.mozilla/firefox
+  - --filesystem=xdg-config/mozilla/firefox
+  - --filesystem=xdg-data/pki/nssdb
+  # The native PJeOffice Pro's settings, where "Set up" points its list of
+  # A3 libraries (list.a3) at p11-kit's library. Only that line changes.
+  - --filesystem=~/.pjeoffice-pro
+  # The native Thunderbird's profiles (~/.thunderbird, or the XDG folder in
+  # newer releases). Only pkcs11.txt changes.
+  - --filesystem=~/.thunderbird
+  - --filesystem=xdg-config/thunderbird
+  # The native LibreOffice's settings, where "Set up" writes the
+  # certificate path (CertDir) to a database in Tessera's own data folder.
+  - --filesystem=xdg-config/libreoffice
+  # Read-only: the AppStream data Flatpak keeps for each remote, with the
+  # icons of every app in it, installed or not: each app's row shows its
+  # own icon without access to the apps' folders.
+  - --filesystem=xdg-data/flatpak/appstream:ro
+  - --filesystem=/var/lib/flatpak/appstream:ro
+  # Read-only: which Flatpak apps are installed (each app's folder in the
+  # user and system installations), for the rows that depend on it: the
+  # Thunderbird ESR and old-ID rows, and whether the Chromium or Evolution
+  # Flatpak shares ~/.pki/nssdb with the native apps. Nothing is written.
+  - --filesystem=xdg-data/flatpak/app:ro
+  - --filesystem=/var/lib/flatpak/app:ro
+  # Read-only: whether `flatpak override --user` already gave an app the
+  # p11-kit socket, to show it in the window.
+  - --filesystem=xdg-data/flatpak/overrides:ro
+  # The host's p11-kit server socket: Tessera lists the tokens through it to
+  # show whether the apps see its own.
+  - --filesystem=xdg-run/p11-kit/pkcs11
+  # The tray icon (StatusNotifierItem).
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # SerproID keeps its certificate list in ~/.config/serproid; keep it inside
+  # Tessera's own data instead of the host home.
+  - --persist=.config/serproid
+
+add-extensions:
+  # Drivers published as extensions, e.g. io.github.pedrohqb.Tessera.Driver.Foo,
+  # each mounted at /app/lib/tessera/extensions/Foo with a driver.toml.
+  io.github.pedrohqb.Tessera.Driver:
+    directory: lib/tessera/extensions
+    subdirectories: true
+    no-autodownload: true
+    autodelete: true
+  # Web signers published as extensions, e.g.
+  # io.github.pedrohqb.Tessera.Signer.Foo, each mounted at
+  # /app/lib/tessera/signers/Foo with a signer.toml. Tessera only reads them
+  # (to show each browser's steps); the Flatpak browsers run them, from
+  # where Flatpak deploys the extension on the host.
+  io.github.pedrohqb.Tessera.Signer:
+    directory: lib/tessera/signers
+    subdirectories: true
+    no-autodownload: true
+    autodelete: true
+
+modules:
+  - name: tessera
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 tessera-wrapper /app/bin/tessera
+      - install -Dm644 io.github.pedrohqb.Tessera.desktop /app/share/applications/io.github.pedrohqb.Tessera.desktop
+      - install -Dm644 io.github.pedrohqb.Tessera.metainfo.xml /app/share/metainfo/io.github.pedrohqb.Tessera.metainfo.xml
+      # Tessera's tray icon reads the scalable icon from this path.
+      - install -Dm644 io.github.pedrohqb.Tessera.svg /app/share/icons/hicolor/scalable/apps/io.github.pedrohqb.Tessera.svg
+      - install -Dm644 io.github.pedrohqb.Tessera-symbolic.svg /app/share/icons/hicolor/symbolic/apps/io.github.pedrohqb.Tessera-symbolic.svg
+      - mkdir -p /app/lib/tessera/extensions /app/lib/tessera/signers
+    sources:
+      # Tessera's release build: the /app tree of its own Flatpak build on
+      # the same runtime (the tessera binary, its built-in OpenSC driver and
+      # the PC/SC client library it bundles). The vendors' drivers are
+      # extensions of their own (io.github.pedrohqb.Tessera.Driver.*).
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: tessera.tar.gz
+        only-arches:
+          - x86_64
+        url: https://github.com/pedrohqb/tessera/releases/download/v0.4.3/tessera-x86_64.tar.gz
+        sha256: de4dfdb2c21f8b5a089d93017297da4c03e1de8d58b3a79c90f8be57082b79c4
+        size: 3636162
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: tessera-wrapper
+      - type: file
+        path: io.github.pedrohqb.Tessera.desktop
+      - type: file
+        path: io.github.pedrohqb.Tessera.metainfo.xml
+      - type: file
+        path: io.github.pedrohqb.Tessera.svg
+      - type: file
+        path: io.github.pedrohqb.Tessera-symbolic.svg

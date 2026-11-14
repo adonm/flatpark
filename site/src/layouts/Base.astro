@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Footer from '../components/Footer.astro';
+import { jsonForScript } from '../lib/json-script.mjs';
 import en from '../i18n/locales/en.json';
 import { defaultLang, getLangFromUrl, languages, localizePath, locales, sectionLabel, stripLang, useTranslations } from '../i18n';
 const { title, description, image, ogType = 'website' } = Astro.props;
@@ -29,6 +30,7 @@ const xDefault = Astro.site ? new URL(localizePath(basePath, defaultLang), Astro
 // The search ones keep their `{n}` / `{q}` placeholders: only the client knows
 // what to put there, since the numbers exist only once a query has been typed.
 const clientStrings = {
+  copy: t('action.copy'),
   copied: t('action.copied'),
   copiedInstall: t('action.copied_install'),
   copyFailed: t('action.copy_failed'),
@@ -99,8 +101,8 @@ const searchMeta = {
     <slot />
     <Footer />
 
-    <script type="application/json" data-i18n set:html={JSON.stringify(clientStrings)}></script>
-    <script type="application/json" data-search-meta set:html={JSON.stringify(searchMeta)}></script>
+    <script type="application/json" data-i18n set:html={jsonForScript(clientStrings)}></script>
+    <script type="application/json" data-search-meta set:html={jsonForScript(searchMeta)}></script>
 
     <script>
       import { initSearch } from '../scripts/search.js';
@@ -112,6 +114,7 @@ const searchMeta = {
       // missing blob degrades to the pre-i18n behaviour instead of blanking.
       const S = (() => {
         const defaults = {
+          copy: 'Copy',
           copied: 'Copied',
           copiedInstall: 'Copied!',
           copyFailed: 'Copy failed',
@@ -151,6 +154,19 @@ const searchMeta = {
       const grid = document.querySelector('[data-grid]');
       const empty = document.querySelector('[data-empty]');
       let activeSection = '';
+      // Home page tabs are scopes, not orders: Approved keeps the blue-shield
+      // cards, New and Updated keep the cards whose date falls inside the tab's
+      // window. The window is measured against the reader's clock rather than
+      // fixed at build time, because the site is only rebuilt when something is
+      // merged and a baked-in "last 30 days" would go stale in between.
+      let approvedOnly = false;
+      let windowField = '';
+      let windowDays = 0;
+      const inWindow = (card) => {
+        if (!windowField) return true;
+        const t = Date.parse(card.dataset[windowField] || '');
+        return Number.isFinite(t) && Date.now() - t <= windowDays * 86400000;
+      };
 
       // Card fold (home page only — the button is what turns it on). The cap is
       // counted in rows rather than cards so the fold lands on a clean edge at
@@ -171,6 +187,11 @@ const searchMeta = {
       // of whatever sort is active.
       function fold(shown) {
         if (!moreBtn || !grid) return;
+        // The Collections tab hides the grid, and its fold button with it.
+        if (grid.hidden) {
+          moreBtn.hidden = true;
+          return;
+        }
         foldCols = columns();
         const limit = foldCols * foldRows;
         shown.forEach((card, i) => {
@@ -182,11 +203,15 @@ const searchMeta = {
       function apply() {
         const shown = [];
         for (const card of cards) {
-          const show = !activeSection || card.dataset.section === activeSection;
+          const show =
+            (!activeSection || card.dataset.section === activeSection) &&
+            (!approvedOnly || card.dataset.approved === '1') &&
+            inWindow(card);
           card.hidden = !show;
           if (show) shown.push(card);
         }
-        if (empty) empty.hidden = shown.length !== 0;
+        // The Collections tab hides the grid, and its empty note with it.
+        if (empty) empty.hidden = shown.length !== 0 || !!grid?.hidden;
         fold(shown);
       }
 
@@ -239,15 +264,23 @@ const searchMeta = {
         if (urlSection()) selectFromUrl();
       }
 
-      // Sort dropdown: reorder the grid in place. ISO dates sort as text.
-      const sortSel = document.querySelector('[data-sort]');
-      sortSel?.addEventListener('change', () => {
-        const mode = sortSel.value;
+      // Sort: reorder the grid in place. ISO dates sort as text. The browse
+      // page drives it from a dropdown, the home page from Flathub-style tabs.
+      function sortCards(mode) {
         const sorted = cards.slice().sort((a, b) => {
           if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
           if (mode === 'updated') return (b.dataset.updated || '').localeCompare(a.dataset.updated || '');
           // added: newest listing first — when *we* shipped it, not when upstream released
           if (mode === 'added') return (b.dataset.added || '').localeCompare(a.dataset.added || '');
+          // installs: most new installs in the last 30 days, then name.
+          // stars: most upstream GitHub stars, then name. A card with no count
+          // (no repository, or not measured) goes after every counted one
+          // instead of reading as zero.
+          if (mode === 'installs' || mode === 'stars') {
+            const n = (c) => (c.dataset[mode] === '' || c.dataset[mode] === undefined ? -1 : Number(c.dataset[mode]));
+            const d = n(b) - n(a);
+            return d || (a.dataset.name || '').localeCompare(b.dataset.name || '');
+          }
           // approved: developer-approved (blue shield) first, then name
           const f = (b.dataset.approved === '1' ? 1 : 0) - (a.dataset.approved === '1' ? 1 : 0);
           return f || (a.dataset.name || '').localeCompare(b.dataset.name || '');
@@ -257,7 +290,96 @@ const searchMeta = {
         // and a stale order would fold away the wrong ones after a re-sort.
         cards.splice(0, cards.length, ...sorted);
         apply();
+      }
+
+      const sortSel = document.querySelector('[data-sort]');
+      sortSel?.addEventListener('change', () => sortCards(sortSel.value));
+
+      const sortTabs = Array.from(document.querySelectorAll('[data-sort-tab]'));
+      const collectionsPanel = document.querySelector<HTMLElement>('[data-collections-panel]');
+
+      // Collections tab fold: every row is in the page, all but the first
+      // `step` start hidden, and each press reveals another `step`. The button
+      // leaves once nothing is left to show.
+      const collectionRows = Array.from(
+        collectionsPanel?.querySelectorAll<HTMLElement>('[data-collection-row]') ?? [],
+      );
+      const moreCollectionsBtn = collectionsPanel?.querySelector<HTMLElement>('[data-more-collections]');
+      const collectionStep = Number(collectionsPanel?.dataset.foldStep) || collectionRows.length;
+      moreCollectionsBtn?.addEventListener('click', () => {
+        const next = collectionRows.filter((row) => row.hidden).slice(0, collectionStep);
+        for (const row of next) row.hidden = false;
+        moreCollectionsBtn.hidden = collectionRows.every((row) => !row.hidden);
       });
+      // Home page: the tab picks which cards (scope), the switch beside it picks
+      // the order (metric), and the order holds across Popular and Approved.
+      // New and Updated are about recency, so they always list newest first by
+      // their own date and the switch steps aside there: ranked by installs or
+      // stars, the freshest listings and releases would sink out of sight.
+      // Without either count (a local build with no stats and no token) there
+      // is no switch and every scope lists newest first.
+      const metricBtns = Array.from(document.querySelectorAll<HTMLElement>('[data-metric]'));
+      const metrics = metricBtns.map((b) => b.dataset.metric || '');
+      let metric = metrics[0] || 'added';
+      const METRIC_KEY = 'catalogMetric';
+      {
+        let saved = new URLSearchParams(location.search).get('by') || '';
+        if (!saved) {
+          try { saved = localStorage.getItem(METRIC_KEY) || ''; } catch {}
+        }
+        if (metrics.includes(saved)) metric = saved;
+      }
+      const showMetric = () => {
+        for (const b of metricBtns) {
+          const on = b.dataset.metric === metric;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-checked', String(on));
+        }
+      };
+
+      function selectTab(tab) {
+        for (const t of sortTabs) {
+          t.classList.toggle('is-active', t === tab);
+          t.setAttribute('aria-selected', String(t === tab));
+        }
+        // Collections is a view, not a scope: it swaps the grid for the
+        // collection rows and leaves the cards alone. The order switch has
+        // nothing to order there, so it steps aside.
+        const showCollections = tab.dataset.sortTab === 'collections';
+        if (collectionsPanel) collectionsPanel.hidden = !showCollections;
+        if (grid) grid.hidden = showCollections;
+        windowField = showCollections ? '' : tab.dataset.windowField || '';
+        const metricGroup = document.querySelector<HTMLElement>('[data-metric-group]');
+        if (metricGroup) metricGroup.hidden = showCollections || !!windowField;
+        if (showCollections) {
+          apply();
+          return;
+        }
+        // A new scope starts over from the first five rows.
+        foldRows = FOLD_ROWS;
+        approvedOnly = tab.dataset.sortTab === 'approved';
+        windowDays = Number(tab.dataset.windowDays) || 0;
+        sortCards(windowField || metric);
+      }
+
+      for (const tab of sortTabs) tab.addEventListener('click', () => selectTab(tab));
+      for (const btn of metricBtns) {
+        btn.addEventListener('click', () => {
+          metric = btn.dataset.metric || metric;
+          try { localStorage.setItem(METRIC_KEY, metric); } catch {}
+          const url = new URL(location.href);
+          if (metric === metrics[0]) url.searchParams.delete('by');
+          else url.searchParams.set('by', metric);
+          if (url.href !== location.href) history.replaceState(history.state, '', url);
+          showMetric();
+          foldRows = FOLD_ROWS;
+          sortCards(metric);
+        });
+      }
+      if (sortTabs.length) {
+        showMetric();
+        selectTab(sortTabs.find((t) => t.classList.contains('is-active')) || sortTabs[0]);
+      }
 
       // Featured carousel: stop rotation on interaction or reduced motion.
       for (const car of document.querySelectorAll<HTMLElement>('[data-fcarousel]')) {
@@ -296,6 +418,21 @@ const searchMeta = {
         }
       }
 
+      // Docs code blocks get a copy button: wrap each <pre> so the button sits
+      // in its corner without scrolling away with long lines.
+      for (const pre of document.querySelectorAll<HTMLElement>('.prose pre')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'code-block';
+        pre.replaceWith(wrap);
+        wrap.append(pre);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'code-copy';
+        button.textContent = S.copy;
+        button.dataset.copy = (pre.textContent || '').replace(/\n$/, '');
+        wrap.append(button);
+      }
+
       for (const button of document.querySelectorAll('[data-copy]')) {
         button.addEventListener('click', async (e) => {
           e.preventDefault();
@@ -313,24 +450,6 @@ const searchMeta = {
       }
 
       apply();
-
-      // Scope tabs (setup page; no-ops elsewhere): switch which command panel
-      // shows. Tabs carry data-tab, panels carry the matching data-panel.
-      for (const tabs of document.querySelectorAll('[data-tabs]')) {
-        const buttons = Array.from(tabs.querySelectorAll('[data-tab]'));
-        const panels = Array.from(tabs.querySelectorAll('[data-panel]'));
-        for (const button of buttons) {
-          button.addEventListener('click', () => {
-            const id = button.dataset.tab;
-            for (const b of buttons) {
-              const on = b === button;
-              b.classList.toggle('is-active', on);
-              b.setAttribute('aria-selected', String(on));
-            }
-            for (const p of panels) p.hidden = p.dataset.panel !== id;
-          });
-        }
-      }
 
       // Screenshot carousel: one slide at a time, dots below to switch. Drop any
       // slide whose hotlinked image fails so the page never shows a broken icon.
@@ -453,10 +572,12 @@ const searchMeta = {
           }
         });
       }
+      // Only the detail page's split button has a menu; the collection page's
+      // plain install button reuses the copy + hint above.
       const installRoot = document.querySelector('[data-install]');
-      if (installRoot) {
+      const menu = installRoot?.querySelector('[data-install-menu]');
+      if (installRoot && menu) {
         const toggle = installRoot.querySelector('[data-install-toggle]');
-        const menu = installRoot.querySelector('[data-install-menu]');
         const hint = installRoot.querySelector('[data-install-hint]');
         toggle?.addEventListener('click', (e) => {
           e.stopPropagation();

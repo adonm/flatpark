@@ -28,7 +28,7 @@ export function getLangFromUrl(url: URL): Lang {
 
 /**
  * Turn a default-locale path into the `lang` equivalent. Paths are written
- * throughout the site in their English form (`/setup/`), and every link goes
+ * throughout the site in their English form (`/apps/`), and every link goes
  * through here so a page never has to know which locale it is rendering as.
  */
 export function localizePath(path: string, lang: Lang): string {
@@ -88,6 +88,31 @@ export function permissionText(
         ? t('perm.read_only', { label: translated })
         : translated;
   const detail = (perm.key ? resolve(`perm.${perm.key}.detail`) : null) ?? perm.detail ?? '';
+  return { label, detail };
+}
+
+// Packaging transparency (see site/tools/enrich.mjs packagingOf): the badge
+// colour per level and the localized title/detail of one declared item. A
+// declared `detail` is a { en, zh-Hans } map; a missing locale falls back to
+// English. The derived support-files item has no detail, only `value`.
+export const packagingDot: Record<string, string> = {
+  unmodified: 'bg-emerald-500',
+  adapted: 'bg-slate-400',
+  modified: 'bg-amber-500',
+  reduced: 'bg-red-500',
+};
+
+export function packagingText(
+  lang: Lang,
+  item: { kind: string; detail?: Record<string, string> | null; value?: string },
+): { label: string; detail: string } {
+  const t = useTranslations(lang);
+  const label = t(`pack.kind.${item.kind}`);
+  const detail = item.detail
+    ? (item.detail[lang] ?? item.detail[defaultLang] ?? '')
+    : item.value
+      ? t(`pack.kind.${item.kind}.auto`, { value: item.value })
+      : '';
   return { label, detail };
 }
 

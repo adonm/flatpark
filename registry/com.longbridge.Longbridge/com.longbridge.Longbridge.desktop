@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Longbridge
+Comment=Longbridge trading platform desktop application.
+StartupNotify=true
+Exec=longbridge
+Icon=com.longbridge.Longbridge
+Categories=Finance;
+Keywords=longbridge;
+StartupWMClass=com.longbridge.app.desktop

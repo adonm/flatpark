@@ -1,0 +1,24 @@
+id: org.videolan.VLCBeta
+name: VLC 4 Beta
+summary: Development builds of the VLC multimedia player
+website: https://www.videolan.org/vlc/
+source_url: https://github.com/jing2uo/vlc-nightly-release
+build:
+  manifest: org.videolan.VLCBeta.yml
+  branch: stable
+  mode: extra-data
+  arches: [x86_64, aarch64]
+catalog:
+  # source_url is our build repo; stars count upstream's
+  stars_repo: videolan/vlc
+  category: AudioVideo
+  tags:
+    - Video
+    - Audio
+    - VLC
+    - Beta
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  dangerous_permissions: []

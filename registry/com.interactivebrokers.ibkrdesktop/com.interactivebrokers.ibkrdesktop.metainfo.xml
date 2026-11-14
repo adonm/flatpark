@@ -9,7 +9,8 @@
     <name>Interactive Brokers LLC</name>
   </developer>
   <url type="homepage">https://www.interactivebrokers.com/</url>
-  <url type="help">https://www.interactivebrokers.com/</url>
+  <url type="bugtracker">https://github.com/flatpark/flatpark/issues</url>
+  <url type="help">https://github.com/flatpark/flatpark/issues</url>
   <description>
     <p>This is a community package of IBKR Desktop and not officially supported by Interactive Brokers LLC.</p>
     <p>IBKR Desktop is a desktop trading platform for Interactive Brokers accounts.</p>
@@ -35,6 +36,18 @@
     <binary>ibkr-desktop</binary>
   </provides>
   <releases>
+    <release version="4.1c" date="2026-11-10">
+      <description></description>
+    </release>
+    <release version="4.0d" date="2026-10-28">
+      <description></description>
+    </release>
+    <release version="3.6h" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="3.6g" date="2026-10-08">
+      <description></description>
+    </release>
     <release version="3.6e" date="2026-09-22">
       <description></description>
     </release>

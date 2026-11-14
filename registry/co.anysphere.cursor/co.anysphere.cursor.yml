@@ -68,12 +68,19 @@ modules:
     sources:
       # BEGIN MANAGED EXTRA-DATA
       - type: extra-data
-        filename: cursor-amd64.deb
+        filename: cursor.deb
         only-arches:
           - x86_64
-        url: https://downloads.cursor.com/production/3a92974361033b2051526321308c2740fe5912c5/linux/x64/deb/amd64/deb/cursor_3.22.12_amd64.deb
-        sha256: 8b9198f7dde79f7e27cc83dabf3c66a93ca5303b6919719100c82f29d9498a65
-        size: 207823240
+        url: https://downloads.cursor.com/production/5f54c8173e5552412beb40702adac16275677fa0/linux/x64/deb/amd64/deb/cursor_3.30.14_amd64.deb
+        sha256: c8003e009f96a6e4fd7185f7016c66d7e36e03d8fa2e2394197511907bcd8226
+        size: 228316960
+      - type: extra-data
+        filename: cursor.deb
+        only-arches:
+          - aarch64
+        url: https://downloads.cursor.com/production/5f54c8173e5552412beb40702adac16275677fa0/linux/arm64/deb/arm64/deb/cursor_3.30.14_arm64.deb
+        sha256: eba5c9f9eee581c7ab76fed56df3d1c3cc8a320d7c2302e64f1e2d206e9dfb74
+        size: 202012876
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

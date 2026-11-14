@@ -1,0 +1,61 @@
+# Upstream Electron appId has a digit-leading segment, invalid for Flatpak.
+# Use reverse DNS of comfy.org instead.
+id: org.comfy.ComfyDesktop
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "26.08"
+command: comfy-desktop
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Electron UI and ComfyUI workflow previews.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  # Download managed environments/models and connect to the local ComfyUI server.
+  - --share=network
+  # CUDA needs NVIDIA device nodes beyond DRI; declared in flatpark.yml.
+  - --device=all
+  # Models, inputs and generated images: upstream's default under home, in the
+  # real home so they can be found, dropped in by hand and shared with a native
+  # install.
+  - --filesystem=~/ComfyUI-Shared:create
+  # Environments stay private: their venvs point at this sandbox's bundled
+  # Python, so a native install sharing the directory could not run them (nor
+  # this one a native install's). They can be recreated from the app.
+  - --persist=ComfyUI-Installs
+  - --persist=ComfyUI-Cache
+  - --unset-env=ELECTRON_RUN_AS_NODE
+modules:
+  - name: comfy-desktop
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 comfy-desktop-wrapper /app/bin/comfy-desktop
+      - install -Dm644 org.comfy.ComfyDesktop.desktop /app/share/applications/org.comfy.ComfyDesktop.desktop
+      - install -Dm644 org.comfy.ComfyDesktop.metainfo.xml /app/share/metainfo/org.comfy.ComfyDesktop.metainfo.xml
+      - install -Dm644 org.comfy.ComfyDesktop.png /app/share/icons/hicolor/512x512/apps/org.comfy.ComfyDesktop.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: app.deb
+        only-arches:
+          - x86_64
+        url: https://download.todesktop.com/241130tqe9q3y/comfyui-desktop-2-1.1.9-build-2611063zxyb71c9-amd64.deb
+        sha256: 186495cc3ec5b7cc5f54c4335f5b78c5d386fa7fe3d6c31c9cfcbf8ddea5b19e
+        size: 143527216
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: comfy-desktop-wrapper
+      - type: file
+        path: org.comfy.ComfyDesktop.desktop
+      - type: file
+        path: org.comfy.ComfyDesktop.metainfo.xml
+      - type: file
+        path: org.comfy.ComfyDesktop.png

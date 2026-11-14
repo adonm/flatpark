@@ -1,0 +1,106 @@
+# Hylki - a GTK 4 / libadwaita email client, Hyprlab's official Debian package
+# repackaged unmodified as extra-data.
+#
+# The .deb holds one binary, usr/bin/hylki, plus its message catalogues under
+# usr/share/locale. The binary links GTK 4, libadwaita, WebKitGTK 6, libsoup 3
+# and OpenSSL 3 from org.gnome.Platform//51 (it needs glibc 2.39; the runtime
+# has 2.44). libpoppler-glib.so.8, for PDF attachment thumbnails, is the one
+# DT_NEEDED the runtime lacks; it comes from FlatPark's prebuilt poppler-glib
+# stack. Upstream publishes an amd64 and an arm64 .deb; both are packaged.
+#
+# WebKitGTK 6 keeps its own web-process sandbox: it goes through Flatpak's
+# sub-sandbox portal, and the app's GApplication id is the Flatpak id, so
+# nothing about it is turned off here.
+#
+# Finish-args follow upstream's own manifest (co.hyprlab.Hylki.yml in
+# hyprlab/hylki), cut to what reading and sending mail needs. Every other grant
+# upstream makes is for an optional feature and is documented as a
+# `flatpak override` line in the metainfo.
+id: co.hyprlab.Hylki
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: hylki
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # WebKit renders the message view on the GPU.
+  - --device=dri
+  # IMAP, POP3, JMAP, SMTP and Microsoft Graph, OAuth's loopback redirect.
+  - --share=network
+  # Passwords and OAuth tokens are kept in the Secret Service keyring.
+  - --talk-name=org.freedesktop.secrets
+  # The deb bundles no Google OAuth client: Google accounts sign in through
+  # GNOME Online Accounts, which hands the app its tokens over D-Bus.
+  - --talk-name=org.gnome.OnlineAccounts
+modules:
+  - name: hylki
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 hylki-wrapper /app/bin/hylki
+      - install -Dm644 co.hyprlab.Hylki.desktop /app/share/applications/co.hyprlab.Hylki.desktop
+      - install -Dm644 co.hyprlab.Hylki.metainfo.xml /app/share/metainfo/co.hyprlab.Hylki.metainfo.xml
+      - install -Dm644 co.hyprlab.Hylki.svg /app/share/icons/hicolor/scalable/apps/co.hyprlab.Hylki.svg
+      - install -Dm644 co.hyprlab.Hylki-symbolic.svg /app/share/icons/hicolor/symbolic/apps/co.hyprlab.Hylki-symbolic.svg
+      # Upstream's restart helper service, as its own manifest installs it.
+      # Inside Flatpak, Settings' "Restart Now" (after a language or app icon
+      # change) asks the session bus to start this name, which Flatpak's
+      # export turns into a fresh `flatpak run`.
+      - install -Dm644 co.hyprlab.Hylki.Restart.service /app/share/dbus-1/services/co.hyprlab.Hylki.Restart.service
+    sources:
+      # libpoppler-glib.so.8 from FlatPark's prebuilt poppler-glib stack
+      # (Poppler with its GLib binding only). apply_extra unpacks it to
+      # /app/extra/poppler-glib and the wrapper puts its lib/ on
+      # LD_LIBRARY_PATH.
+      #
+      # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
+      # that block from the resolver's sources and would drop anything else.
+      - type: extra-data
+        filename: poppler-glib.tar.xz
+        only-arches:
+          - x86_64
+        url: https://github.com/flatpark/prebuilt/releases/download/poppler-glib-v2/poppler-glib-poppler-glib-v2-gnome-51-x86_64.tar.xz
+        sha256: c29f452aaa0170ee84a4458819e1575e47e5e05e1a047c84c01dae1a5bf8259d
+        size: 1561208
+      - type: extra-data
+        filename: poppler-glib.tar.xz
+        only-arches:
+          - aarch64
+        url: https://github.com/flatpark/prebuilt/releases/download/poppler-glib-v2/poppler-glib-poppler-glib-v2-gnome-51-aarch64.tar.xz
+        sha256: 708e0e46c204668aa32349c1e60bfbc533c09a9d34a36398ac394fa20f9fc143
+        size: 1295588
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: hylki.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/hyprlab/hylki/releases/download/v1.48.1/hylki_1.48.1-1_amd64.deb
+        sha256: f1fbf6d5df51341abd7840fd59b083fa263599c741ca1314d40ff0cc05d87cfc
+        size: 13917272
+      - type: extra-data
+        filename: hylki.deb
+        only-arches:
+          - aarch64
+        url: https://github.com/hyprlab/hylki/releases/download/v1.48.1/hylki_1.48.1-1_arm64.deb
+        sha256: 9bdf33c5fc07f1d49941549c2009d9cda9edaf5d655567b05da1c4f516387fd4
+        size: 12526728
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: hylki-wrapper
+      - type: file
+        path: co.hyprlab.Hylki.desktop
+      - type: file
+        path: co.hyprlab.Hylki.metainfo.xml
+      - type: file
+        path: co.hyprlab.Hylki.svg
+      - type: file
+        path: co.hyprlab.Hylki-symbolic.svg
+      - type: file
+        path: co.hyprlab.Hylki.Restart.service

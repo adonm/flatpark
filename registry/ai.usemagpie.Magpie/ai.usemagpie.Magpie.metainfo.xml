@@ -19,6 +19,16 @@
     <p>Commands launched by Magpie run inside the sandbox, so it cannot run agent command-line tools installed on the host or see whether an agent is running. Launch at login is not available in this package.</p>
     <p>In this Flatpak, Magpie's built-in Update button opens the upstream release page; it does not update the Flatpak. Package updates are delivered through FlatPark.</p>
   </description>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Manage agents and conversations in the main window</caption>
+      <image>https://raw.githubusercontent.com/yetone/magpie/main/site/public/img/agents-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Access conversations from the compact side panel</caption>
+      <image>https://raw.githubusercontent.com/yetone/magpie/main/site/public/img/panel-light.png</image>
+    </screenshot>
+  </screenshots>
   <launchable type="desktop-id">ai.usemagpie.Magpie.desktop</launchable>
   <categories>
     <category>Development</category>
@@ -33,6 +43,279 @@
   </keywords>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.4176" date="2026-11-14">
+      <description></description>
+    </release>
+    <release version="0.1.4097" date="2026-11-13">
+      <description></description>
+    </release>
+    <release version="0.1.4066" date="2026-11-13">
+      <description></description>
+    </release>
+    <release version="0.1.3960" date="2026-11-12">
+      <description></description>
+    </release>
+    <release version="0.1.3918" date="2026-11-12">
+      <description></description>
+    </release>
+    <release version="0.1.3817" date="2026-11-12">
+      <description></description>
+    </release>
+    <release version="0.1.3740" date="2026-11-11">
+      <description></description>
+    </release>
+    <release version="0.1.3653" date="2026-11-10">
+      <description></description>
+    </release>
+    <release version="0.1.3612" date="2026-11-10">
+      <description></description>
+    </release>
+    <release version="0.1.3490" date="2026-11-10">
+      <description></description>
+    </release>
+    <release version="0.1.3431" date="2026-11-09">
+      <description></description>
+    </release>
+    <release version="0.1.3414" date="2026-11-09">
+      <description></description>
+    </release>
+    <release version="0.1.3344" date="2026-11-08">
+      <description></description>
+    </release>
+    <release version="0.1.3329" date="2026-11-08">
+      <description></description>
+    </release>
+    <release version="0.1.3289" date="2026-11-07">
+      <description></description>
+    </release>
+    <release version="0.1.3247" date="2026-11-07">
+      <description></description>
+    </release>
+    <release version="0.1.3213" date="2026-11-07">
+      <description></description>
+    </release>
+    <release version="0.1.3207" date="2026-11-06">
+      <description></description>
+    </release>
+    <release version="0.1.3177" date="2026-11-06">
+      <description></description>
+    </release>
+    <release version="0.1.3077" date="2026-11-05">
+      <description></description>
+    </release>
+    <release version="0.1.3058" date="2026-11-05">
+      <description></description>
+    </release>
+    <release version="0.1.3001" date="2026-11-04">
+      <description></description>
+    </release>
+    <release version="0.1.2957" date="2026-11-04">
+      <description></description>
+    </release>
+    <release version="0.1.2885" date="2026-11-03">
+      <description></description>
+    </release>
+    <release version="0.1.2862" date="2026-11-03">
+      <description></description>
+    </release>
+    <release version="0.1.2766" date="2026-11-02">
+      <description></description>
+    </release>
+    <release version="0.1.2738" date="2026-11-02">
+      <description></description>
+    </release>
+    <release version="0.1.2647" date="2026-11-01">
+      <description></description>
+    </release>
+    <release version="0.1.2608" date="2026-11-01">
+      <description></description>
+    </release>
+    <release version="0.1.2459" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="0.1.2391" date="2026-10-31">
+      <description></description>
+    </release>
+    <release version="0.1.2278" date="2026-10-30">
+      <description></description>
+    </release>
+    <release version="0.1.2212" date="2026-10-30">
+      <description></description>
+    </release>
+    <release version="0.1.2112" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.1.2058" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.1.1995" date="2026-10-29">
+      <description></description>
+    </release>
+    <release version="0.1.1967" date="2026-10-28">
+      <description></description>
+    </release>
+    <release version="0.1.1896" date="2026-10-28">
+      <description></description>
+    </release>
+    <release version="0.1.1780" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="0.1.1734" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="0.1.1692" date="2026-10-27">
+      <description></description>
+    </release>
+    <release version="0.1.1649" date="2026-10-26">
+      <description></description>
+    </release>
+    <release version="0.1.1600" date="2026-10-26">
+      <description></description>
+    </release>
+    <release version="0.1.1597" date="2026-10-26">
+      <description></description>
+    </release>
+    <release version="0.1.1557" date="2026-10-25">
+      <description></description>
+    </release>
+    <release version="0.1.1532" date="2026-10-25">
+      <description></description>
+    </release>
+    <release version="0.1.1448" date="2026-10-24">
+      <description></description>
+    </release>
+    <release version="0.1.1384" date="2026-10-24">
+      <description></description>
+    </release>
+    <release version="0.1.1359" date="2026-10-23">
+      <description></description>
+    </release>
+    <release version="0.1.1336" date="2026-10-23">
+      <description></description>
+    </release>
+    <release version="0.1.1326" date="2026-10-22">
+      <description></description>
+    </release>
+    <release version="0.1.1320" date="2026-10-22">
+      <description></description>
+    </release>
+    <release version="0.1.1317" date="2026-10-21">
+      <description></description>
+    </release>
+    <release version="0.1.1310" date="2026-10-21">
+      <description></description>
+    </release>
+    <release version="0.1.1304" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="0.1.1296" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="0.1.1295" date="2026-10-20">
+      <description></description>
+    </release>
+    <release version="0.1.1294" date="2026-10-19">
+      <description></description>
+    </release>
+    <release version="0.1.1293" date="2026-10-19">
+      <description></description>
+    </release>
+    <release version="0.1.1290" date="2026-10-18">
+      <description></description>
+    </release>
+    <release version="0.1.1289" date="2026-10-18">
+      <description></description>
+    </release>
+    <release version="0.1.1285" date="2026-10-17">
+      <description></description>
+    </release>
+    <release version="0.1.1283" date="2026-10-17">
+      <description></description>
+    </release>
+    <release version="0.1.1279" date="2026-10-17">
+      <description></description>
+    </release>
+    <release version="0.1.1276" date="2026-10-16">
+      <description></description>
+    </release>
+    <release version="0.1.1268" date="2026-10-16">
+      <description></description>
+    </release>
+    <release version="0.1.1261" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="0.1.1254" date="2026-10-15">
+      <description></description>
+    </release>
+    <release version="0.1.1242" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.1.1234" date="2026-10-14">
+      <description></description>
+    </release>
+    <release version="0.1.1229" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.1.1226" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.1.1219" date="2026-10-12">
+      <description></description>
+    </release>
+    <release version="0.1.1211" date="2026-10-12">
+      <description></description>
+    </release>
+    <release version="0.1.1200" date="2026-10-11">
+      <description></description>
+    </release>
+    <release version="0.1.1185" date="2026-10-11">
+      <description></description>
+    </release>
+    <release version="0.1.1178" date="2026-10-11">
+      <description></description>
+    </release>
+    <release version="0.1.1163" date="2026-10-10">
+      <description></description>
+    </release>
+    <release version="0.1.1138" date="2026-10-09">
+      <description></description>
+    </release>
+    <release version="0.1.1120" date="2026-10-08">
+      <description></description>
+    </release>
+    <release version="0.1.1103" date="2026-10-07">
+      <description></description>
+    </release>
+    <release version="0.1.1088" date="2026-10-06">
+      <description></description>
+    </release>
+    <release version="0.1.1083" date="2026-10-06">
+      <description></description>
+    </release>
+    <release version="0.1.1038" date="2026-10-05">
+      <description></description>
+    </release>
+    <release version="0.1.943" date="2026-10-05">
+      <description></description>
+    </release>
+    <release version="0.1.850" date="2026-10-04">
+      <description></description>
+    </release>
+    <release version="0.1.753" date="2026-10-03">
+      <description></description>
+    </release>
+    <release version="0.1.660" date="2026-10-02">
+      <description></description>
+    </release>
+    <release version="0.1.657" date="2026-10-02">
+      <description></description>
+    </release>
+    <release version="0.1.590" date="2026-10-01">
+      <description></description>
+    </release>
+    <release version="0.1.503" date="2026-09-30">
+      <description></description>
+    </release>
     <release version="0.1.406" date="2026-09-29">
       <description></description>
     </release>

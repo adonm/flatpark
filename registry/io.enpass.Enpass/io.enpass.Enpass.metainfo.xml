@@ -7,8 +7,8 @@
   <project_license>LicenseRef-proprietary=https://www.enpass.io/terms-of-use/</project_license>
   <developer_name>Enpass Technologies Inc.</developer_name>
   <url type="homepage">https://www.enpass.io/</url>
-  <url type="help">https://support.enpass.io/</url>
-  <url type="bugtracker">https://discussion.enpass.io/</url>
+  <url type="bugtracker">https://github.com/flatpark/flatpark/issues</url>
+  <url type="help">https://github.com/flatpark/flatpark/issues</url>
   <launchable type="desktop-id">io.enpass.Enpass.desktop</launchable>
   <categories>
     <category>Utility</category>
@@ -22,14 +22,14 @@
       Enpass stores passwords and other credentials locally, supports password generation, autofill through browser extensions, and optional sync across devices.
     </p>
     <p>
-      Browser extension support in this build includes host-tool shims for debugging Enpass browser validation inside Flatpak.
+      This package repackages the official Enpass Debian package; nothing is added inside the app. Before the browser extension may connect, Enpass checks which program is on the other end with lsof and /proc, which cannot see the browser from inside the sandbox, so small lsof, readlink and cat scripts run those checks on the host (through flatpak-spawn, which is why this package can start host commands).
     </p>
   </description>
   <releases>
-    <release version="6.12.6.2258">
+    <release version="6.12.6.2258" date="2026-09-16">
       <description></description>
     </release>
-    <release version="6.12.6.2256">
+    <release version="6.12.6.2256" date="2026-09-15">
       <description></description>
     </release>
     <release version="6.11.13.1957" date="2026-03-10"/>

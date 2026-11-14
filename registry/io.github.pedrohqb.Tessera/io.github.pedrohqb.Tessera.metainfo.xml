@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.pedrohqb.Tessera</id>
+  <launchable type="desktop-id">io.github.pedrohqb.Tessera.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Tessera</name>
+  <summary>Share smart card and token drivers with your other apps</summary>
+  <summary xml:lang="pt-BR">Compartilhe os drivers de cartões e tokens com seus outros aplicativos</summary>
+  <developer id="io.github.pedrohqb">
+    <name>Pedro Henrique Quitete Barreto</name>
+  </developer>
+  <url type="homepage">https://github.com/pedrohqb/tessera</url>
+  <url type="bugtracker">https://github.com/pedrohqb/tessera/issues</url>
+  <url type="vcs-browser">https://github.com/pedrohqb/tessera</url>
+  <description>
+    <p>This package is maintained by Tessera's developer. It installs Tessera's official release build from its GitHub releases, unmodified. The vendors' token drivers are separate extensions, installed for the token at hand: io.github.pedrohqb.Tessera.Driver.SafeSign (GD Burti and other SafeSign tokens), .SafeNet (SafeNet eToken and IDPrime) and .SerproID (Serpro's cloud certificate). The browser plugins Lacuna Web PKI, Softplan WebSigner (e-SAJ) and Certisign WebSigner are extensions too, for the Flatpak browsers: io.github.pedrohqb.Tessera.Signer.WebPKI, .SoftplanWebSigner and .CertisignWebSigner. After installing one, use Restart Tessera in its menu.</p>
+    <p>Tessera lets sandboxed apps use hardware tokens, smart cards and cloud certificates without installing any driver on the system. It runs the token drivers inside its own sandbox and shares every token with other apps through p11-kit, the standard way for Linux apps to reach PKCS#11 devices.</p>
+    <p>This is meant for immutable systems such as Fedora Silverblue, Kinoite, Bluefin, Aurora and Bazzite, where installing a vendor's driver package on the host is hard or impossible.</p>
+    <ul>
+      <li>Shows the card readers, the inserted tokens and their certificates</li>
+      <li>OpenSC built in, for Feitian ePass2003, PIV cards and YubiKeys, OpenPGP cards and the many others OpenSC supports</li>
+      <li>The vendors' drivers are extensions, each downloaded from its vendor at install time and checked against pinned checksums; others can publish theirs the same way</li>
+      <li>Says which driver a connected token needs, with its page in the app store and the command that installs it</li>
+      <li>Opens the drivers' tools, such as SafeSign's Token Administration and the SerproID app</li>
+      <li>Sets up Firefox, Chromium, Google Chrome, Microsoft Edge, Brave, Thunderbird, Evolution, LibreOffice, Papers, Okular, JSignPdf and Master PDF Editor to use the tokens, and shows the command that lets them reach Tessera</li>
+      <li>Brings the web signers Lacuna Web PKI, Softplan WebSigner (e-SAJ) and Certisign WebSigner, each an extension, to the Flatpak browsers, with the one command each browser needs</li>
+      <li>Publishes a driver only while it answers, so a driver that hangs cannot hang the apps</li>
+      <li>Keeps running in the background with an icon in the tray, and can start at login</li>
+    </ul>
+    <p>Each driver runs in its own p11-kit server inside Tessera. Tessera adds them to the host's p11-kit configuration, and the host's p11-kit server (p11-kit-server.socket, enabled once) serves them to other apps. Sandboxed apps need --filesystem=xdg-run/p11-kit/pkcs11; PJeOffice Pro from FlatPark has it already.</p>
+    <p>The host needs pcscd with the CCID driver and the user's p11-kit server, which most distributions ship. Turn the server on once with <code>systemctl --user enable --now p11-kit-server.socket</code>; Tessera's window shows the command too.</p>
+    <p>Each sandboxed app that should use the tokens needs access to that server, given once per app; Tessera's window shows the command for each, for example <code>flatpak override --user --filesystem=xdg-run/p11-kit/pkcs11 org.mozilla.firefox</code>. Firefox, Thunderbird, LibreOffice, JSignPdf, Master PDF Editor, Papers and Okular also need the "Set up" button in Tessera. Apps installed from the distribution are on the Native tab, each with its own Set up. To undo it for an app: <code>flatpak override --user --reset org.mozilla.firefox</code>.</p>
+  </description>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/pedrohqb/tessera/afd9714336c61efc48814e104fa2d4cf79e7563f/data/screenshots/main.png</image>
+      <caption>Home: a SafeSign token and a SerproID cloud certificate, with their certificates</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Utility</category>
+    <category>Security</category>
+  </categories>
+  <keywords>
+    <keyword>token</keyword>
+    <keyword>smart card</keyword>
+    <keyword>certificate</keyword>
+    <keyword>PKCS#11</keyword>
+    <keyword>p11-kit</keyword>
+  </keywords>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <releases>
+    <release version="0.4.3" date="2026-11-13">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.4.3</url>
+      <description></description>
+    </release>
+    <release version="0.4.2" date="2026-11-13">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.4.2</url>
+      <description></description>
+    </release>
+    <release version="0.4.1" date="2026-11-10">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.4.1</url>
+      <description></description>
+    </release>
+    <release version="0.4.0" date="2026-11-09">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.4.0</url>
+      <description></description>
+    </release>
+    <release version="0.3.1" date="2026-11-09">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.3.1</url>
+      <description></description>
+    </release>
+    <release version="0.3.0" date="2026-11-08">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.3.0</url>
+      <description></description>
+    </release>
+    <release version="0.2.1" date="2026-11-02">
+      <url type="details">https://github.com/pedrohqb/tessera/releases/tag/v0.2.1</url>
+      <description></description>
+    </release>
+    <release version="0.2.0" date="2026-11-02">
+      <description>
+        <p>Native apps: a new tab sets up the Firefox, Chromium-based browsers, Okular, Papers and PJeOffice Pro installed from the distribution, and leaves alone the ones the system already gives p11-kit (Fedora and its family).</p>
+        <ul>
+          <li>Every app shows its own icon, installed or not, and the window keeps its icons on KDE Plasma; the tray icon follows the panel's colors.</li>
+          <li>SerproID's "approve on your phone" notification shows for every signature on KDE Plasma.</li>
+          <li>Fewer permissions: no access to the other apps' folders.</li>
+          <li>Tests of the window and of the detection on Fedora, Debian, Ubuntu, Arch and openSUSE run on every change.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-10-29">
+      <description>
+        <p>First release: one p11-kit server per driver (SafeSign IC, SafeNet Authentication Client, SerproID), published through the host p11-kit server; readers, tokens and certificates; set-up for Firefox, Chromium, Google Chrome, Microsoft Edge, Brave, Papers and Okular; tray icon and start at login.</p>
+      </description>
+    </release>
+  </releases>
+</component>

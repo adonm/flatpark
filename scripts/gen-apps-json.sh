@@ -113,7 +113,8 @@ for app_id in "${apps[@]}"; do
     # No --user: flatpak routes to whichever single remote the user configured
     # (system or user). Forcing --user would break a system-only setup. The
     # /setup page still teaches the explicit per-user vs system commands.
-    install_cmd="flatpak install $REMOTE_NAME $APP_ID"
+    # An extension installs with its parent, in the same command.
+    install_cmd="flatpak install $REMOTE_NAME${APP_EXTENDS:+ $APP_EXTENDS} $APP_ID"
     packaging_url="${PACKAGING_REPO_URL%/}/tree/$PACKAGING_BRANCH/registry/$APP_ID"
     {
         printf '{\n'
@@ -121,6 +122,7 @@ for app_id in "${apps[@]}"; do
         printf '  "name": "%s",\n' "$(json_escape "$APP_NAME")"
         printf '  "summary": "%s",\n' "$(json_escape "$APP_SUMMARY")"
         printf '  "branch": "%s",\n' "$(json_escape "$APP_BRANCH")"
+        printf '  "arches": [%s],\n' "$(printf '"%s", ' $APP_ARCHES | sed 's/, $//')"
         printf '  "category": "%s",\n' "$(json_escape "$APP_CATEGORY")"
         printf '  "tags": %s,\n' "$(tags_json)"
         printf '  "updateMode": "%s",\n' "$(json_escape "$UPDATE_MODE")"

@@ -1,0 +1,67 @@
+#!/bin/sh
+set -eu
+
+# Blanc is an Electron app staged by apply_extra to /app/extra/blanc from the
+# AppDir inside the upstream AppImage. Run it through zypak-wrapper (from
+# org.electronjs.Electron2.BaseApp): zypak redirects Chromium's SUID sandbox
+# onto the Flatpak sandbox, so web content keeps its renderer sandbox.
+# --ozone-platform-hint=auto lets Chromium pick Wayland when available and fall
+# back to X11.
+#
+# LD_LIBRARY_PATH mirrors what the AppDir's own AppRun sets, so the handful of
+# libraries the bundle carries for older hosts (libnotify, libXtst, libXss and
+# the appindicator trio) resolve exactly as they do outside Flatpak.
+#
+# Defensively clear ELECTRON_RUN_AS_NODE so a value leaked from the launching
+# environment (a terminal inside VS Code / another Electron app) cannot make the
+# binary start as plain Node instead of the GUI.
+unset ELECTRON_RUN_AS_NODE
+
+# Chromium writes the tray icon and media cover art to files in $TMPDIR and
+# hands the desktop their paths; the sandbox's /tmp is private, so the host
+# can't read them. Point TMPDIR at the per-app runtime dir, which is the same
+# path inside and outside.
+export TMPDIR="${XDG_RUNTIME_DIR}/app/${FLATPAK_ID}"
+
+export LD_LIBRARY_PATH="/app/extra/blanc/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Updates arrive through Flatpak, so Blanc's built-in updater is switched off.
+# It reads BLANC_UPDATE_CHANNEL at start-up and turns itself off for any value
+# other than its own "staging" channel (resolveUpdaterPolicy in
+# src/main/updater-policy.js), so it never tries to download a new AppImage.
+export BLANC_UPDATE_CHANNEL=flatpak
+
+# apply_extra resolves the launcher's upstream name from the AppDir's own AppRun
+# and records it next to the app tree, so an upstream rename cannot break an
+# automated pin refresh.
+launcher="$(cat /app/extra/launcher 2>/dev/null || true)"
+[ -n "$launcher" ] || launcher=blanc
+
+# Since 1.43 the build is castLabs' Widevine Electron (ECS), and upstream's
+# AppRun starts it through blanc-ecs-launcher (scripts/ecs-linux-launcher.cc
+# upstream) rather than directly. That launcher replaces LD_PRELOAD with its
+# CDM preload shim, which would drop zypak's own preload, so it is not used
+# here. But main.js refuses to start on Linux unless the launcher's
+# environment is present (createDrmSupport: BLANC_ECS_LAUNCHER_ROOT set and
+# BLANC_ECS_FULL_PROFILE equal to userData), so set the same values it would,
+# with the same explicit profile it passes. This is the arrangement upstream
+# tested under Flatpak (bnfy/blanc#580). Without the shim the Widevine CDM
+# cannot load behind the sandbox, so protected (DRM) playback is unavailable;
+# ordinary browsing is unaffected.
+profile="${XDG_CONFIG_HOME:-$HOME/.config}/Blanc"
+export BLANC_ECS_LAUNCHER_ROOT=/app/extra/blanc
+export BLANC_ECS_FULL_PROFILE="$profile"
+unset BLANC_ECS_CDM_PRELOAD_PATH BLANC_ECS_CDM_EXECUTABLE
+
+# The profile guard needs userData to be exactly that profile, so a second
+# --user-data-dir would only make Blanc refuse to start; say why instead.
+for arg in "$@"; do
+    case "$arg" in
+        --user-data-dir|--user-data-dir=*)
+            echo "blanc: --user-data-dir is not supported in this package; the profile is $profile" >&2
+            exit 2 ;;
+    esac
+done
+
+exec zypak-wrapper "/app/extra/blanc/$launcher" --ozone-platform-hint=auto \
+    --user-data-dir="$profile" "$@"

@@ -2,8 +2,10 @@
 import Base from '../../layouts/Base.astro';
 import Topbar from '../../components/Topbar.astro';
 import Featured from '../../components/Featured.astro';
+import CollectionRow from '../../components/CollectionRow.astro';
 import AppCard from '../../components/AppCard.astro';
 import { loadApps, loadCatalog } from '../../lib/data.mjs';
+import { loadCollections } from '../../lib/collections.mjs';
 import { localeOnlyPaths } from '../../i18n/paths.mjs';
 import { getLangFromUrl, localizePath, useTranslations } from '../../i18n';
 
@@ -15,10 +17,47 @@ const t = useTranslations(lang);
 
 const { repo } = loadCatalog();
 const apps = loadApps();
-// Default order: newest listing first. What's new *here* is the front page's
-// job; "recently updated" tracks upstream release dates, which is a different
-// question and stays one dropdown pick away.
-const ordered = [...apps].sort((a, b) => (b.added || '').localeCompare(a.added || ''));
+const collections = loadCollections(apps);
+// Five rows, like the card grid; each "show more" press reveals as many
+// again (the fold is in Base.astro); /collections/ is still a click away.
+const HOME_COLLECTIONS = 5;
+// The tabs pick which apps (all, developer-approved, listed in the last 30
+// days, updated in the last 14) and the switch beside them picks the order:
+// new installs in the last 30 days, or upstream GitHub stars. The order holds
+// across Popular and Approved; New and Updated always list newest first by
+// their own date (the switch hides there), since ranking them by popularity
+// buries exactly what those tabs exist to show. The windows are applied
+// in the browser against today's date (Base.astro), since the site is only
+// rebuilt on merge.
+// Updated is shorter than New because upstream ships often: 30 days of
+// releases is most of the catalog, which would make the tab filter nothing.
+// Both counts are optional (the build reads them best-effort), so the switch
+// offers only what was measured, and without either there is no switch and
+// no Popular tab: every scope lists newest first.
+const hasStats = apps.some((a) => a.stats);
+const hasStars = apps.some((a) => a.upstreamStars);
+const metrics = [
+  ...(hasStats ? [{ mode: 'installs', label: t('apps.metric.installs'), title: t('apps.metric.installs.title') }] : []),
+  ...(hasStars ? [{ mode: 'stars', label: t('apps.metric.stars'), title: t('apps.metric.stars.title') }] : []),
+];
+const byAdded = (a, b) => (b.added || '').localeCompare(a.added || '');
+const byInstalls30 = (a, b) =>
+  (b.stats?.installs30 ?? 0) - (a.stats?.installs30 ?? 0) || a.name.localeCompare(b.name);
+const byStars = (a, b) =>
+  (b.upstreamStars?.count ?? -1) - (a.upstreamStars?.count ?? -1) || a.name.localeCompare(b.name);
+// Server order matches the first metric so the page reads right before the
+// script runs; the script re-sorts if the reader picked the other one.
+const ordered = [...apps].sort(hasStats ? byInstalls30 : hasStars ? byStars : byAdded);
+const NEW_DAYS = 30;
+const UPDATED_DAYS = 14;
+const tabs = [
+  ...(metrics.length ? [{ mode: 'popular', label: t('apps.tab.popular') }] : []),
+  { mode: 'approved', label: t('apps.tab.approved') },
+  { mode: 'added', label: t('apps.tab.added'), title: t('apps.tab.added.title', { days: NEW_DAYS }), field: 'added', days: NEW_DAYS },
+  { mode: 'updated', label: t('apps.tab.updated'), title: t('apps.tab.updated.title', { days: UPDATED_DAYS }), field: 'updated', days: UPDATED_DAYS },
+  // Not an order: swaps the grid for the collection rows (see Base.astro).
+  ...(collections.length ? [{ mode: 'collections', label: t('apps.tab.collections') }] : []),
+];
 // Hero stat: developer approvals are the one claim on this page we cannot issue
 // ourselves, so it is counted from the registry rather than written into copy.
 const approvedCount = apps.filter((a) => a.upstreamApproved).length;
@@ -62,7 +101,8 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
             </li>
           </ul>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a href={localizePath('/setup/', lang)} class="inline-flex h-11 items-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark">{t('home.hero.setup')}</a>
+            <a href={localizePath('/docs/users/setup/', lang)} class="inline-flex h-11 items-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark">{t('home.hero.setup')}</a>
+            <a href={localizePath('/docs/users/rpak/', lang)} class="inline-flex h-11 items-center rounded-full bg-ink px-6 text-sm font-semibold text-canvas shadow-sm transition hover:opacity-85">{t('home.hero.rpak')}</a>
           </div>
         </div>
         <Featured apps={apps} />
@@ -74,7 +114,7 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
       <h2 class="sr-only">{t('apps.all')}</h2>
       <!--
         The catalog controls follow you down the grid: 51 cards is several
-        screens, and sort is useless once it has scrolled away. It parks under
+        screens, and the order tabs are useless once it has scrolled away. It parks under
         the header (--topbar-h) rather than at the top of the viewport, and the
         negative margin lets its background span the container's gutters.
       -->
@@ -82,20 +122,53 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
         class="sticky top-[var(--topbar-h)] z-10 -mx-5 mt-4 flex flex-wrap items-center justify-between gap-3
           border-t border-line bg-canvas/90 px-5 py-3 backdrop-blur"
       >
-        <a
+        <!--
+          Flathub-style tabs rather than a dropdown: three orders, all one
+          click away, and the active one is visible without opening anything.
+          On a phone the tabs size to their labels and the track scrolls
+          sideways if they still do not fit.
+        -->
+        <div role="tablist" aria-label={t('apps.sort.label')} class="inline-grid max-w-full grid-flow-col auto-cols-max overflow-x-auto rounded-lg border border-line bg-surface p-0.5 text-sm sm:auto-cols-fr">
+          {tabs.map((tab, i) => (
+            <button
+              type="button"
+              role="tab"
+              class:list={['seg', i === 0 && 'is-active']}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              data-sort-tab={tab.mode}
+              data-window-field={tab.field}
+              data-window-days={tab.days}
+              title={tab.title}
+            >{tab.label}</button>
+          ))}
+        </div>
+        <div class="flex items-center gap-3">
+          {metrics.length > 1 && (
+            <div
+              role="radiogroup"
+              aria-label={t('apps.metric.label')}
+              data-metric-group
+              class="inline-grid grid-flow-col auto-cols-fr rounded-lg border border-line bg-surface p-0.5 text-sm"
+            >
+              {metrics.map((m, i) => (
+                <button
+                  type="button"
+                  role="radio"
+                  class:list={['seg', i === 0 && 'is-active']}
+                  aria-checked={i === 0 ? 'true' : 'false'}
+                  title={m.title}
+                  data-metric={m.mode}
+                >{m.label}</button>
+              ))}
+            </div>
+          )}
+          {/* One metric is not a choice: no switch, but the script still orders by it. */}
+          {metrics.length === 1 && <span hidden data-metric={metrics[0].mode}></span>}
+          <a
           href={localizePath('/apps/', lang)}
           class="inline-flex h-9 items-center rounded-lg border border-line bg-surface px-3 text-sm font-semibold transition hover:border-brand"
         >{t('apps.browse')}</a>
-        <select
-          data-sort
-          aria-label={t('apps.sort.label')}
-          class="h-9 rounded-lg border border-line bg-surface px-3 text-sm font-semibold outline-none focus:border-brand"
-        >
-          <option value="added" selected>{t('apps.sort.added')}</option>
-          <option value="updated">{t('apps.sort.recent')}</option>
-          <option value="approved">{t('apps.sort.approved')}</option>
-          <option value="name">{t('apps.sort.name')}</option>
-        </select>
+        </div>
       </div>
 
       <!--
@@ -105,6 +178,30 @@ const approvedCount = apps.filter((a) => a.upstreamApproved).length;
       <div data-grid class="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4 pt-0.5">
         {ordered.map((app) => <AppCard app={app} />)}
       </div>
+      <div class="rounded-2xl border border-dashed border-line p-12 text-center text-muted" data-empty hidden>
+        <h3 class="font-bold text-ink">{t('apps.window.empty.title')}</h3>
+        <p>{t('apps.window.empty.body')}</p>
+      </div>
+      {collections.length > 0 && (
+        <div data-collections-panel data-fold-step={HOME_COLLECTIONS} hidden class="min-h-[28rem] pt-0.5">
+          <div class="grid gap-4">
+            {collections.map((collection, i) => <CollectionRow collection={collection} hidden={i >= HOME_COLLECTIONS} />)}
+          </div>
+          <div class="mt-6 flex flex-wrap justify-center gap-3">
+            {collections.length > HOME_COLLECTIONS && (
+              <button
+                type="button"
+                data-more-collections
+                class="inline-flex h-11 items-center rounded-full border border-line bg-surface px-6 text-sm font-semibold transition hover:border-brand"
+              >{t('collections.more')}</button>
+            )}
+            <a
+              href={localizePath('/collections/', lang)}
+              class="inline-flex h-11 items-center rounded-full border border-line bg-surface px-6 text-sm font-semibold transition hover:border-brand"
+            >{t('collections.all')} &rarr;</a>
+          </div>
+        </div>
+      )}
       <!-- Folded to the first five rows until asked; see the fold in Base.astro. -->
       <div class="mt-6 flex justify-center">
         <button

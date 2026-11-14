@@ -1,0 +1,70 @@
+id: com.longbridge.Longbridge
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: longbridge
+build-options:
+  no-debuginfo: true
+tags:
+  - proprietary
+finish-args:
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --socket=pulseaudio
+  - --socket=fallback-x11
+  - --socket=wayland
+modules:
+  - name: longbridge
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 longbridge-wrapper /app/bin/longbridge
+      - install -Dm644 com.longbridge.Longbridge.png /app/share/icons/hicolor/512x512/apps/com.longbridge.Longbridge.png
+      - install -Dm644 com.longbridge.Longbridge.metainfo.xml /app/share/metainfo/com.longbridge.Longbridge.metainfo.xml
+      - install -Dm644 fonts.conf /app/share/fonts/fonts.conf
+      - install -Dm644 com.longbridge.Longbridge.desktop /app/share/applications/com.longbridge.Longbridge.desktop
+    sources:
+      # The app's entire font set: fonts.conf points fontconfig at /app/extra/fonts
+      # and nowhere else, so the CJK face has to be here or the UI renders as tofu.
+      # Extra-data rather than a build module — NotoSansCJK is 19.5 MB, and as a
+      # build module it put 16 MB into FlatPark's repository for a file jsDelivr
+      # already serves. Same tag-pinned URLs and sha256 as before.
+      #
+      # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
+      # that block from the resolver's sources and would drop anything else in it.
+      - type: extra-data
+        filename: NotoSans-Regular.ttf
+        only-arches:
+          - x86_64
+        url: https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@noto-monthly-release-2026.05.01/fonts/NotoSans/hinted/ttf/NotoSans-Regular.ttf
+        sha256: 478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823
+        size: 621572
+      - type: extra-data
+        filename: NotoSansCJK-Regular.ttc
+        only-arches:
+          - x86_64
+        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTC/NotoSansCJK-Regular.ttc
+        sha256: b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a
+        size: 19484784
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: longbridge.deb
+        only-arches:
+          - x86_64
+        url: https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v1.1.2-linux-x86_64.deb
+        sha256: 92806523bbab029f47f80df1efa14cf4b8d1927e17654e3d082083102487e277
+        size: 68668482
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: longbridge-wrapper
+      - type: file
+        path: com.longbridge.Longbridge.desktop
+      - type: file
+        path: com.longbridge.Longbridge.metainfo.xml
+      - type: file
+        path: com.longbridge.Longbridge.png
+      - type: file
+        path: fonts.conf
