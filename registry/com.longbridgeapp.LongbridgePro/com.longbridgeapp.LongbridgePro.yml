@@ -52,9 +52,9 @@ modules:
         filename: longbridgepro.deb
         only-arches:
           - x86_64
-        url: https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v0.20.1-linux-x86_64.deb
-        sha256: 5e8038ef35fd45d10dfd3bbbb580a8e3900de0d33157ca3f8e5c183411154c54
-        size: 61024104
+        url: https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v1.1.2-linux-x86_64.deb
+        sha256: 92806523bbab029f47f80df1efa14cf4b8d1927e17654e3d082083102487e277
+        size: 68668482
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
