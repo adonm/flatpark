@@ -71,9 +71,9 @@ modules:
         filename: cursor-amd64.deb
         only-arches:
           - x86_64
-        url: https://downloads.cursor.com/production/3a92974361033b2051526321308c2740fe5912c5/linux/x64/deb/amd64/deb/cursor_3.22.12_amd64.deb
-        sha256: 8b9198f7dde79f7e27cc83dabf3c66a93ca5303b6919719100c82f29d9498a65
-        size: 207823240
+        url: https://downloads.cursor.com/production/52fdf018932f1335bc6dd36acc5e33d30759192e/linux/x64/deb/amd64/deb/cursor_3.31.11_amd64.deb
+        sha256: 93329fcde15232e8b4b42486d989a74b467bbadb6a3b75591f53f2b22c17a5a5
+        size: 230845844
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
