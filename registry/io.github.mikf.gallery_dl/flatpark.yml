@@ -1,0 +1,23 @@
+id: io.github.mikf.gallery_dl
+name: gallery-dl
+summary: Download image galleries from supported websites
+website: https://github.com/mikf/gallery-dl
+source_url: https://github.com/mikf/gallery-dl
+build:
+  manifest: io.github.mikf.gallery_dl.yml
+  branch: stable
+  mode: extra-data
+  arches: [x86_64]
+catalog:
+  interface: cli
+  category: Network
+  tags: [Downloader, Images]
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  dangerous_permissions:
+    # A command-line tool takes files as paths in its arguments, with no file
+    # chooser; a working directory outside the grant is silently replaced by
+    # the sandbox's empty home (docs/packagers/solutions/command-line-tools.md).
+    - --filesystem=home

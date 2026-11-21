@@ -1,0 +1,26 @@
+id: io.github.pedrohqb.Tessera
+name: Tessera
+summary: Share smart card and token drivers with your other apps
+website: https://github.com/pedrohqb/tessera
+source_url: https://github.com/pedrohqb/tessera
+build:
+  manifest: io.github.pedrohqb.Tessera.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Security
+  upstream_approved: true
+  tags:
+    - Brazil
+    - ICP-Brasil
+    - DigitalSignature
+    - SmartCard
+    - Legal
+update:
+  command: ./resolve-update.sh
+policy:
+  # Tessera is GPL-3.0-or-later, and OpenSC, built into its release, is
+  # LGPL-2.1-or-later. The vendors' closed-source token drivers are separate
+  # extensions (io.github.pedrohqb.Tessera.Driver.*), each with its own
+  # entry.
+  proprietary: false

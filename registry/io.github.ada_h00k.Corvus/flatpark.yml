@@ -1,0 +1,32 @@
+id: io.github.ada_h00k.Corvus
+name: Corvus
+summary: Desktop client for Signal with an encrypted local chat history
+website: https://github.com/ada-h00k/Corvus
+source_url: https://github.com/ada-h00k/Corvus
+build:
+  manifest: io.github.ada_h00k.Corvus.yml
+  branch: stable
+  mode: extra-data
+  arches: [x86_64]
+catalog:
+  category: Network
+  upstream_approved: true
+  tags: [Signal, Messenger, Chat, Qt]
+update:
+  command: ./resolve-update.sh
+upstream:
+  # Upstream builds its own Flatpak on the same KDE runtime and publishes that
+  # build's /app tree as corvus-linux-x86_64-flatpark.tar.gz, which is what we
+  # pin. Its finish-args are ours; the diff keeps them in step.
+  manifest: packaging/flatpak/io.github.ada_h00k.Corvus.yml
+  accept_missing_modules:
+    # Built by upstream and shipped inside the pinned archive.
+    - libsecret
+    - qtkeychain
+    - libqrencode
+    - protobuf
+    - hunspell
+    - hunspell-dictionaries
+    - corvus-cli
+policy:
+  proprietary: false

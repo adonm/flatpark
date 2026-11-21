@@ -1,0 +1,63 @@
+id: com.longbridge.Longbridge
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: longbridge
+build-options:
+  no-debuginfo: true
+tags:
+  - proprietary
+finish-args:
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --socket=pulseaudio
+  - --socket=fallback-x11
+  - --socket=wayland
+modules:
+  - name: longbridge
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 longbridge-wrapper /app/bin/longbridge
+      - install -Dm644 com.longbridge.Longbridge.png /app/share/icons/hicolor/512x512/apps/com.longbridge.Longbridge.png
+      - install -Dm644 com.longbridge.Longbridge.metainfo.xml /app/share/metainfo/com.longbridge.Longbridge.metainfo.xml
+      - install -Dm644 fonts.conf /app/share/fonts/fonts.conf
+      - install -Dm644 com.longbridge.Longbridge.desktop /app/share/applications/com.longbridge.Longbridge.desktop
+    sources:
+      # The app's entire font set: fonts.conf points fontconfig at
+      # /app/extra/noto-fonts/share/fonts and nowhere else, so Noto Sans and the
+      # CJK face have to be there or the UI renders as tofu. Both come from the
+      # noto-fonts stack in flatpark/prebuilt (docs/packagers/prebuilt.md), as
+      # extra-data rather than a build module — as a build module the CJK face
+      # put 16 MB into FlatPark's repository. They used to be pinned from
+      # jsDelivr, which went 404 for the CJK face (#1316).
+      #
+      # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
+      # that block from the resolver's sources and would drop anything else in it.
+      - type: extra-data
+        filename: noto-fonts.tar.xz
+        url: https://github.com/flatpark/prebuilt/releases/download/noto-fonts-v1/noto-fonts-noto-fonts-v1-noarch.tar.xz
+        sha256: b736ac362d9fad5c53f7d29aa3a868c53c610319a2aff5ece295449e53700259
+        size: 11197404
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: longbridge.deb
+        only-arches:
+          - x86_64
+        url: https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v1.2.0-g7595e75-linux-x86_64.deb
+        sha256: a700f50ed0f7ff7365de076b9541b80e711c52acee7d78f694b54c273fa7ff9c
+        size: 91392424
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: longbridge-wrapper
+      - type: file
+        path: com.longbridge.Longbridge.desktop
+      - type: file
+        path: com.longbridge.Longbridge.metainfo.xml
+      - type: file
+        path: com.longbridge.Longbridge.png
+      - type: file
+        path: fonts.conf

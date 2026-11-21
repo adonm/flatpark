@@ -1,11 +1,15 @@
 // llms.txt (llmstxt.org): a plain-markdown index for AI assistants answering
 // "how do I install <app> on Linux". Generated from the same catalog data as
 // the pages so it never drifts from what the remote actually serves.
-import { loadApps, loadCatalog } from '../lib/data.mjs';
+import { isExtension, loadApps, loadCatalog } from '../lib/data.mjs';
+import { buildNav, flattenNav, getDocsFor } from '../lib/docs';
 
-export function GET() {
+export async function GET() {
   const { repo } = loadCatalog();
-  const apps = loadApps();
+  const all = loadApps();
+  const apps = all.filter((a) => !isExtension(a));
+  const extensions = all.filter(isExtension);
+  const docs = flattenNav(buildNav(await getDocsFor('en')));
   const site = (repo.homepage || 'https://flatpark.org').replace(/\/$/, '');
 
   const lines = [
@@ -28,9 +32,24 @@ export function GET() {
         `- [${a.name}](${site}/apps/${a.id}/): ${a.summary}. Install: \`${a.installCmd}\``,
     ),
     '',
+    ...(extensions.length
+      ? [
+          '## Extensions',
+          '',
+          'Add-ons that run inside another app; the install command brings the app along.',
+          '',
+          ...extensions.map(
+            (a) =>
+              `- [${a.name}](${site}/apps/${a.id}/): ${a.summary} (extension for ${a.parent.name}). Install: \`${a.installCmd}\``,
+          ),
+          '',
+        ]
+      : []),
     '## Docs',
     '',
-    `- [Setup guide](${site}/setup/): adding the remote, user vs system installs`,
+    `Every page is also served as Markdown at the same path with \`.md\`; [llms-full.txt](${site}/llms-full.txt) has all of them in one file.`,
+    '',
+    ...docs.map((d) => `- [${d.title}](${site}/docs/${d.base}.md)${d.description ? `: ${d.description}` : ''}`),
     `- [Browse by category](${site}/apps/)`,
     `- [Packaging source](https://github.com/flatpark/flatpark): manifest and sandbox permissions for every app`,
     '',

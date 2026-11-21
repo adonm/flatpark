@@ -5,11 +5,11 @@
 # releasing the same day just means several small parallel PRs — no shared
 # branch, no races.
 #
-# The PR is merged here, on the same terms as the daily sweep (see the
+# The PR is merged here, on the same terms as the scheduled sweep (see the
 # auto-merge block below): the diff is one app's pins, and that payload was
 # already unpacked with the app's own apply_extra.sh two steps up. Waiting for
 # a human would only mean the app is late — the same bytes land automatically
-# at 06:17 UTC anyway.
+# at the next update-check run (06:17 or 18:17 UTC) anyway.
 #
 # update-check.yml (the daily full sweep) stays the safety net: it catches
 # releases whose Linux asset was uploaded after the ping, and its supersede
@@ -41,7 +41,15 @@ jobs:
     # 那边的源恢复之后换回 ubuntu-latest。
     runs-on: ubuntu-26.04
     steps:
+      # Check out main's tip, not github.sha. For repository_dispatch, github.sha
+      # is main as it was when the event was created, so a second ping for the
+      # same release (Imladris's workflow sends two per tag) queued behind the
+      # first by `concurrency` would recompute against pre-merge main, see the
+      # same pin diff again, and open + merge a duplicate PR and publish. On the
+      # tip it sees the first run's merge and takes the "no pin changes" exit.
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -57,6 +65,7 @@ jobs:
       # Worker validates them, but they still originate outside this repo.
       - name: Recompute pins for the released app
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           APP_ID: ${{ github.event.client_payload.app_id }}
           TAG: ${{ github.event.client_payload.tag }}
           UPSTREAM: ${{ github.event.client_payload.repo }}
@@ -94,7 +103,7 @@ jobs:
           AUTO_MERGE: ${{ vars.AUTO_MERGE_PINS }}
         run: |
           if git diff --quiet -- registry/; then
-            echo "no pin changes — asset not uploaded yet or already current; daily update-check is the fallback"
+            echo "no pin changes — asset not uploaded yet or already current; scheduled update-check is the fallback"
             exit 0
           fi
           # What the resolver actually rewrote, captured before the commit so

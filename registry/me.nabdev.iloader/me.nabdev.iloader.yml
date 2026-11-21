@@ -1,0 +1,58 @@
+id: me.nabdev.iloader
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: iloader
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # GTK/WebKit display and GPU rendering.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Apple signing services, app downloads and network-connected devices.
+  - --share=network
+  # GPU rendering for WebKitGTK. USB devices are reached through the host
+  # usbmuxd socket below, so no USB device access is needed.
+  - --device=dri
+  # Device discovery and pairing use the host usbmuxd socket.
+  - --filesystem=/run/usbmuxd
+  # Store Apple credentials and pairing material using Secret Service.
+  - --talk-name=org.freedesktop.secrets
+modules:
+  - name: iloader
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 iloader-wrapper /app/bin/iloader
+      - install -Dm644 me.nabdev.iloader.desktop /app/share/applications/me.nabdev.iloader.desktop
+      - install -Dm644 me.nabdev.iloader.metainfo.xml /app/share/metainfo/me.nabdev.iloader.metainfo.xml
+      - install -Dm644 me.nabdev.iloader.png /app/share/icons/hicolor/256x256/apps/me.nabdev.iloader.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: iloader.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/nab138/iloader/releases/download/v2.4.2/iloader-linux-amd64.deb
+        sha256: ee61cc27f043f1c58e10f8397ac88fb58dba51660d604d4c377b44699a7c5add
+        size: 11357298
+      - type: extra-data
+        filename: iloader.deb
+        only-arches:
+          - aarch64
+        url: https://github.com/nab138/iloader/releases/download/v2.4.2/iloader-linux-arm64.deb
+        sha256: 5dab3e007b1e5a56cc6698a8fe282d4f257d000424f2c88fd70589070d66bccb
+        size: 11532012
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: iloader-wrapper
+      - type: file
+        path: me.nabdev.iloader.desktop
+      - type: file
+        path: me.nabdev.iloader.metainfo.xml
+      - type: file
+        path: me.nabdev.iloader.png

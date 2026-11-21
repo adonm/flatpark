@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Update resolver for Kelivo.
+#
+# Prints the current version + the Linux x86_64 .deb as JSON on stdout:
+#   { "version": "1.2.0", "releaseDate": "YYYY-MM-DD",
+#     "sources": [ { "filename": "app.deb", "url": "..." } ] }
+# Logs go to stderr. No hashing, no manifest rewriting — FlatPark downloads the
+# URL and computes the extra-data sha256/size at build time. The version is
+# compared against the latest <release> in the AppStream metainfo.
+set -euo pipefail
+
+repo="Chevey339/kelivo"
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }; }
+need curl; need jq
+
+rel="$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} \
+        "https://api.github.com/repos/$repo/releases/latest")"
+
+version="$(jq -r '.tag_name | ltrimstr("v")' <<<"$rel")"
+date="$(jq -r '.published_at' <<<"$rel" | cut -c1-10)"
+# The Linux x86_64 build is the `Kelivo_linux_<version>+<build>_amd64.deb` asset (the .rpm and
+# .AppImage, the detached .sig files and the macOS/Windows builds are skipped). Since v1.3.3
+# upstream also publishes a `-NoImpeller` variant of each Linux build (Flutter's legacy Skia
+# renderer, a fallback for GPUs where Impeller misrenders); FlatPark ships the default build,
+# so the NoImpeller .deb is excluded.
+url="$(jq -r '[.assets[] | select(.name | test("_amd64\\.deb$")) | select(.name | test("NoImpeller") | not) | .browser_download_url]
+              | if length == 1 then .[0] else empty end' <<<"$rel")"
+
+[ -n "$version" ] && [ -n "$url" ] || { echo "failed to resolve Kelivo release" >&2; exit 1; }
+echo "resolved Kelivo $version ($date): $url" >&2
+
+jq -n --arg v "$version" --arg d "$date" --arg u "$url" \
+  '{version:$v, releaseDate:$d, sources:[{filename:"app.deb", url:$u}]}'
