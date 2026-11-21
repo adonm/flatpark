@@ -72,9 +72,9 @@ modules:
         filename: dorion.deb
         only-arches:
           - x86_64
-        url: https://github.com/SpikeHD/Dorion/releases/download/v6.13.2/Dorion_6.13.2_amd64.deb
-        sha256: 02eec4dd6526a583f54c95fa4c37a6a3520edb9c399f92347cc9a1c6b66e9210
-        size: 9645520
+        url: https://github.com/SpikeHD/Dorion/releases/download/v7.0.1/Dorion_7.0.1_amd64.deb
+        sha256: 04cd6e9433afa9d7574410ad4165baca8345b5d37abf769b1ef3a43882b8084d
+        size: 142755904
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
