@@ -69,16 +69,16 @@ modules:
         filename: zapfast-x86_64.tar.gz
         only-arches:
           - x86_64
-        url: https://github.com/crmne/zapfast/releases/download/v0.17.0/zapfast-v0.17.0-x86_64-unknown-linux-gnu.tar.gz
-        sha256: c3d09afd0343badbcc74c70ac50051a3d1f27719abdeb978f5c8634a403a1963
-        size: 31702149
+        url: https://github.com/crmne/zapfast/releases/download/v0.21.3/zapfast-v0.21.3-x86_64-unknown-linux-gnu.tar.gz
+        sha256: 089dc5a6f567a3427d7bdcdc3d84781397819124b90a749202f6242dfdd259c8
+        size: 38320869
       - type: extra-data
         filename: zapfast-aarch64.tar.gz
         only-arches:
           - aarch64
-        url: https://github.com/crmne/zapfast/releases/download/v0.17.0/zapfast-v0.17.0-aarch64-unknown-linux-gnu.tar.gz
-        sha256: dd97bfce5976c244dc365d8f0d3c53a7e85438279dd9ebb6f175138706285d72
-        size: 30890558
+        url: https://github.com/crmne/zapfast/releases/download/v0.21.3/zapfast-v0.21.3-aarch64-unknown-linux-gnu.tar.gz
+        sha256: 606c49773376c44ab941cce24e2ac6897b8131649b5322542e1eb3c5575a29d6
+        size: 37332859
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
