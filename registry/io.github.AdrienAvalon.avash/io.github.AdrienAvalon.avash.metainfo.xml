@@ -55,6 +55,9 @@
     <keyword>remote desktop</keyword>
   </keywords>
   <releases>
+    <release version="0.15.0" date="2026-11-25">
+      <description></description>
+    </release>
     <release version="0.13.1" date="2026-09-13"/>
   </releases>
 </component>
