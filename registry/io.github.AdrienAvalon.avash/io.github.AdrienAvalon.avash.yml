@@ -54,9 +54,9 @@ modules:
         filename: avash.deb
         only-arches:
           - x86_64
-        url: https://github.com/AdrienAvalon/avash/releases/download/v0.13.1/Avash_0.13.1_amd64.deb
-        sha256: 73fed8cfb7c1d006e3e274d2223d85b9d073526ee3c18254ab17b04a7e53e4da
-        size: 16430938
+        url: https://github.com/AdrienAvalon/avash/releases/download/v0.16.0/Avash_0.16.0_amd64.deb
+        sha256: b13168ed3c7a5b74faac61c3de83ce76f757ae790df3a67f5ab7d14260da50fd
+        size: 16901968
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh
