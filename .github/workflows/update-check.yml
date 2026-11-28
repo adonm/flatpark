@@ -3,8 +3,9 @@
 # creds here — it only reads public URLs and opens a PR, which it then merges
 # itself (see the auto-merge block below) and dispatches publish.yml for.
 #
-# This is the pull-mode safety net. The fast path is release-dispatch.yml:
-# upstream CI pings us on release and a single-app PR opens within minutes.
+# This is the pull-mode safety net. The fast path is upstream-publish.yml:
+# upstream CI pings us on release and update-app.yml opens a single-app PR
+# within minutes. update-app.yml also runs by hand for one app.
 # This full sweep still catches everything push mode can't — apps whose
 # upstream never adopted the action, releases whose Linux asset was uploaded
 # after the ping, and resolver hiccups — and its supersede step below cleans
@@ -13,7 +14,7 @@ name: update-check
 
 on:
   schedule:
-    - cron: "17 6 * * *"   # daily, 06:17 UTC
+    - cron: "17 6,18 * * *"   # twice daily, 06:17 and 18:17 UTC
   workflow_dispatch:
 
 permissions:
@@ -29,24 +30,68 @@ jobs:
     # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
     # 那边的源恢复之后换回 ubuntu-latest。
     runs-on: ubuntu-26.04
+    # node, gh, flatpak and the resolvers' tools come with the image. It also
+    # carries appstreamcli: update-pins validates any upstream release notes
+    # before writing them into a metainfo, and without it that guard silently
+    # no-ops in the one place it actually runs unattended. Privileged for
+    # apply_extra's bwrap.
+    container:
+      image: ghcr.io/flatpark/ci:build
+      options: --privileged
+    # A container job's run steps default to sh; these scripts are bash.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      # update-pins validates any upstream release notes before writing them
-      # into a metainfo. Without appstreamcli that guard silently no-ops, so
-      # install it up front rather than leaving the check off in the one place
-      # it actually runs unattended.
-      - name: Install appstreamcli
+      # Set here, not as ${{ runner.temp }}: in a container job that is the
+      # host's path, not the one mounted here.
+      - name: Job paths
         run: |
-          sudo apt-get update
-          sudo apt-get install -y appstream
+          {
+            echo "FAILED_OUT=$RUNNER_TEMP/resolve-failures.tsv"
+            echo "RESOLVED_OUT=$RUNNER_TEMP/resolved.tsv"
+            echo "STALE_OUT=$RUNNER_TEMP/stale.tsv"
+          } >> "$GITHUB_ENV"
       - name: Recompute pins from upstream
+        env:
+          # Every resolver that reaches the GitHub API already reads this, 131 of
+          # the 154 (130 by curl, OpenTubeX by gh api). Unset, they go out
+          # anonymously on one 60-per-hour IP budget, and the ones that run after
+          # it is gone fail to resolve instead of being held back, so they keep
+          # their pins and the run still goes green (update-check #131 lost 89).
+          GITHUB_TOKEN: ${{ github.token }}
+          # FAILED_OUT (Job paths): a resolver that fails keeps its app on the
+          # current pin and is in neither `changed` nor `held`, so nothing else
+          # in this run would notice it (update-check #131 lost 89 that way and
+          # went green). RESOLVED_OUT: what each successful resolver picked, for
+          # the stale check below.
         run: |
+          : > "$FAILED_OUT"
+          : > "$RESOLVED_OUT"
           ids="$(./scripts/check-updates.sh | tr '\n' ' ')"
           echo "changed=$ids" >> "$GITHUB_ENV"
           echo "changed apps: ${ids:-<none>}"
+          failed="$(cut -f1 "$FAILED_OUT" | tr '\n' ' ')"
+          echo "failed=${failed% }" >> "$GITHUB_ENV"
+          echo "failed to resolve: ${failed:-<none>}"
+          echo "sweep_done=1" >> "$GITHUB_ENV"
+      # A resolver whose filter stopped matching (upstream renamed its tag
+      # prefix or its Linux asset) still exits 0: it returns the newest release
+      # that matches, which is the pinned one, and the app never updates and
+      # never alerts. KatieCAD sat on v1.2.0 once v1.2.1 switched .tar.xz to
+      # .tar.gz. Compare each picked tag with what upstream actually released.
+      - name: Find resolvers that picked an old release
+        if: env.sweep_done == '1'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/check-stale.mjs "$RESOLVED_OUT" > "$STALE_OUT"
+          stale="$(cut -f1 "$STALE_OUT" | tr '\n' ' ')"
+          echo "stale=${stale% }" >> "$GITHUB_ENV"
+          echo "stale_done=1" >> "$GITHUB_ENV"
+          echo "resolved an old release: ${stale:-<none>}"
       # The auto/update-pins-* PR this job opens is squash-merged seconds later,
       # so the pr-checks run its `opened` event queues never gets to look inside
       # the artifact just pinned (its merge ref is deleted before setup — the
@@ -56,11 +101,9 @@ jobs:
       # with `apply_extra script failed, exit status 256` (issue #130). Unpack
       # each new payload here, the way an install does, and hold back the pins
       # that no longer unpack instead of shipping them.
-      - name: Install flatpak
+      - name: Add the Flathub remote
         if: env.changed != ''
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak bubblewrap
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
       - name: Verify the new payloads unpack
         if: env.changed != ''
@@ -69,8 +112,15 @@ jobs:
           kept=""
           for id in $changed; do
             echo "::group::apply_extra $id"
-            if INSTALL_RUNTIME=1 ./scripts/check-apply-extra.sh "$id"; then
+            rc=0
+            INSTALL_RUNTIME=1 ./scripts/check-apply-extra.sh "$id" || rc=$?
+            if [ "$rc" = 0 ]; then
               kept="$kept $id"
+            elif [ "$rc" = 2 ]; then
+              # The download failed, so the payload was never checked. Skip this
+              # pin for today without an alert; the next sweep retries it.
+              echo "::warning title=download failed for $id::skipping this pin until the next run"
+              git checkout -- "registry/$id/"
             else
               echo "::warning title=apply_extra failed for $id::holding back this pin; the new upstream artifact does not unpack"
               # Drop this app's recomputed pin, keeping it on the last version
@@ -97,27 +147,29 @@ jobs:
           # this needs no git history (the checkout is shallow). Untracked files
           # count too — `git add registry/` below would sweep them in.
           touched="$(git status --porcelain --untracked-files=all -- registry/ | sed 's/^...//')"
-          date="$(date -u +%Y-%m-%d)"
-          branch="auto/update-pins-$date"
+          # Date plus UTC time: tells apart the two runs a day without listing
+          # every app id (the list made the squash commit subject unreadable).
+          stamp="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          branch="auto/update-pins-$(date -u +%Y-%m-%d-%H%M)"
           git config user.name "flatpark-bot"
           git config user.email "bot@flatpark.org"
           git checkout -B "$branch"
           git add registry/
-          git commit -m "chore(update): refresh extra-data pins (${changed:-apps})"
+          git commit -m "chore(update): refresh extra-data pins ($stamp)"
           head_sha="$(git rev-parse HEAD)"   # to find the doomed pr-checks run after --delete-branch
           git push -f origin "$branch"
 
           # One app id per line, as a markdown list
           apps_md="$(for id in ${changed:-}; do printf -- '- `%s`\n' "$id"; done)"
           [ -n "$apps_md" ] || apps_md='- (see diff)'
-          title="Update extra-data pins ($date)"
-          body="$(printf 'Automated extra-data pin refresh — %s\n\n**Updated apps:**\n\n%s\n\nEach payload was unpacked with the app'"'"'s `apply_extra.sh` before being pinned here.\n\nMerging triggers a rebuild + publish of the changed app(s).' "$date" "$apps_md")"
+          title="chore(update): refresh extra-data pins ($stamp)"
+          body="$(printf 'Automated extra-data pin refresh — %s\n\n**Updated apps:**\n\n%s\n\nEach payload was unpacked with the app'"'"'s `apply_extra.sh` before being pinned here.\n\nMerging triggers a rebuild + publish of the changed app(s).' "$stamp" "$apps_md")"
           if [ -n "${held:-}" ]; then
             held_md="$(for id in $held; do printf -- '- `%s`\n' "$id"; done)"
             body="$(printf '%s\n\n**Held back — the new upstream artifact does not unpack:**\n\n%s\n\nThese keep their current pin. Their `apply_extra.sh` needs a look before the update can ship.' "$body" "$held_md")"
           fi
 
-          # Create today's PR, or refresh it if this branch already opened one earlier today
+          # Create this run's PR, or refresh it if the branch somehow already has one
           if [ -z "$(gh pr list --head "$branch" --state open --json number -q '.[].number')" ]; then
             gh pr create --base main --head "$branch" --title "$title" --body "$body"
           else
@@ -125,14 +177,14 @@ jobs:
           fi
 
           # Supersede older open auto-update PRs and per-app release PRs
-          # (release-dispatch.yml, auto/release-*): today's batch is recomputed
+          # (upstream-publish.yml, auto/release-*): this batch is recomputed
           # against main, so it's a superset of any unmerged earlier one — keep
           # a single open PR.
           new="$(gh pr list --head "$branch" --state open --json number -q '.[0].number')"
           for n in $(gh pr list --state open --json number,headRefName \
                        -q ".[] | select((.headRefName | startswith(\"auto/update-pins-\")) or (.headRefName | startswith(\"auto/release-\"))) | select(.headRefName != \"$branch\") | .number"); do
             echo "superseding older auto-update PR #$n"
-            gh pr close "$n" --comment "Superseded by #$new ($date pin refresh)." --delete-branch || true
+            gh pr close "$n" --comment "Superseded by #$new ($stamp pin refresh)." --delete-branch || true
           done
 
           # Auto-merge. Nothing here waits for a review: the diff is pins only,
@@ -140,7 +192,7 @@ jobs:
           # apply_extra.sh above — that check, not a human read of a sha256, is
           # what actually catches a bad update.
           #
-          # Guard: check-updates.sh `eval`s each app's `update.command`, so a
+          # Guard: check-updates.sh runs each app's `update.command`, so a
           # resolver can in principle write anywhere in the tree. A pin refresh
           # only ever rewrites the manifest (`registry/<id>/<id>.yml`, where the
           # url/sha256 live) and the metainfo next to it, so anything else in the
@@ -206,23 +258,59 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Resolver failures are one alert for the whole batch, rewritten each
+          # run with that day's list, so they get fixed together in one PR.
+          if [ -s "$FAILED_OUT" ]; then
+            n="$(wc -l < "$FAILED_OUT")"
+            {
+              echo "These apps' update resolvers failed in the latest sweep, so they"
+              echo "stay on their current pin and get no updates until fixed:"
+              echo
+              echo "| App | Last error |"
+              echo "|---|---|"
+              sed 's/|/\\|/g' "$FAILED_OUT" | awk -F'\t' '{ printf "| `%s` | %s |\n", $1, $2 }'
+              echo
+              echo "Reproduce one with \`./scripts/check-updates.sh <app-id>\` (set"
+              echo "\`GITHUB_TOKEN\`). If it was only upstream lagging (release out, Linux"
+              echo "asset uploaded later) and the resolver passes now, update just that app"
+              echo "with \`gh workflow run update-app.yml -f app_id=<app-id>\` instead of"
+              echo "waiting for the next sweep. This issue is rewritten every run and closes"
+              echo "itself once every resolver succeeds."
+            } | ./scripts/ci-alert.sh sync "update-check/resolvers" \
+                  "update-check: $n resolver(s) failed"
+          elif [ "${sweep_done:-}" = 1 ]; then
+            ./scripts/ci-alert.sh resolve "update-check/resolvers" \
+              "Every resolver succeeded in this run."
+          fi
+
+          # Same shape for resolvers that succeeded on an old release.
+          if [ -s "$STALE_OUT" ]; then
+            n="$(wc -l < "$STALE_OUT")"
+            {
+              echo "These apps' resolvers succeeded but picked an older release than"
+              echo "upstream's newest one with a Linux build, so they never update and"
+              echo "never fail. Usually upstream renamed a tag or an asset and the"
+              echo "resolver's filter no longer matches:"
+              echo
+              echo "| App | Resolver picked | Newer upstream releases |"
+              echo "|---|---|---|"
+              sed 's/|/\\|/g' "$STALE_OUT" | awk -F'\t' '{ printf "| `%s` | `%s` | %s |\n", $1, $2, $3 }'
+              echo
+              echo "Fix the resolver to match the new naming. If those releases are"
+              echo "deliberately skipped (another product in a monorepo, a nightly"
+              echo "channel), set \`update.stale_ignore\` to a regex matching their tag or"
+              echo "release name, with a comment saying why. See"
+              echo "docs/packagers/basics.md#resolve-updatesh. This issue is rewritten"
+              echo "every run and closes itself once no resolver is behind."
+            } | ./scripts/ci-alert.sh sync "update-check/stale" \
+                  "update-check: $n resolver(s) picked an old release"
+          elif [ "${stale_done:-}" = 1 ]; then
+            ./scripts/ci-alert.sh resolve "update-check/stale" \
+              "Every resolver picked upstream's newest Linux release in this run."
+          fi
+
           for id in ${held:-}; do
-            ./scripts/ci-alert.sh open "update-check/$id" \
-              "update-check: $id no longer unpacks" <<EOF
-          The payload upstream is serving for \`$id\` fails this app's
-          \`apply_extra.sh\`, so the pin refresh was held back and the app stays on
-          the last version known to install. Users are not affected until this is
-          fixed and the new version ships.
-
-          Usually upstream repackaged — a renamed launcher, a relocated binary — and
-          \`registry/$id/apply_extra.sh\` needs to follow. Reproduce with:
-
-          \`\`\`
-          ./scripts/check-apply-extra.sh $id
-          \`\`\`
-
-          This issue closes itself once that payload unpacks again.
-          EOF
+            ./scripts/held-back-alert.sh "$id"
           done
 
           # Apps whose new payload verified this run are healthy by definition.
@@ -238,12 +326,12 @@ jobs:
           stale=""
           for key in $(./scripts/ci-alert.sh list "update-check/"); do
             id="${key#update-check/}"
+            # The batch alerts are not apps; they are synced above.
+            case "$id" in resolvers|stale) continue ;; esac
             case " ${held:-} " in *" $id "*) continue ;; esac
             stale="$stale $id"
           done
           if [ -n "$stale" ]; then
-            command -v flatpak >/dev/null || \
-              sudo apt-get install -y flatpak bubblewrap
             flatpak remote-add --user --if-not-exists flathub \
               https://dl.flathub.org/repo/flathub.flatpakrepo
             for id in $stale; do
@@ -254,10 +342,26 @@ jobs:
             done
           fi
 
+      # Permissions and modules are not pins. A package that names an upstream
+      # Flatpak manifest gets an issue when that file's finish-args, module
+      # names, or helper archive URLs differ. Nothing is copied and nothing is
+      # merged; the issue stays open until a person decides.
+      # continue-on-error: drift is already exit 0 under --alert, so a failure
+      # here is the script itself breaking. That must not skip the gate below,
+      # which is what turns a held-back pin into a red run.
+      - name: Report upstream Flatpak manifest drift
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-upstream-manifests.mjs --alert
+
       # Last, so a held-back app still gets its PR opened for the apps that passed.
       # A red daily run is the point: an upstream that repackaged needs a human.
-      - name: Fail if any pin was held back
-        if: env.held != ''
+      - name: Fail if any pin was held back, failed to resolve, or is behind
+        if: env.held != '' || env.failed != '' || env.stale != ''
         run: |
-          echo "held back — apply_extra failed against the new payload:$held" >&2
+          [ -z "${held:-}" ] || echo "held back — apply_extra failed against the new payload: $held" >&2
+          [ -z "${failed:-}" ] || echo "failed to resolve: $failed" >&2
+          [ -z "${stale:-}" ] || echo "resolved an old release: $stale" >&2
           exit 1

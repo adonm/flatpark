@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Root
+GenericName=Community Chat
+Comment=Chat, voice and video for communities
+Exec=root %U
+Icon=com.rootapp.Root
+Terminal=false
+StartupNotify=true
+Categories=Network;Chat;InstantMessaging;
+Keywords=chat;voice;video;community;server;
+StartupWMClass=Root
+# root:// links. The AppImage's own Root.desktop has no MimeType; Root registers
+# the scheme at run time by writing a desktop entry, which stays in the sandbox.
+MimeType=x-scheme-handler/root;

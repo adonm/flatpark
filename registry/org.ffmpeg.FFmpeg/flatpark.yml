@@ -1,0 +1,27 @@
+id: org.ffmpeg.FFmpeg
+name: FFmpeg
+summary: Convert and inspect audio and video from the command line
+website: https://ffmpeg.org/
+source_url: https://github.com/flatpark/prebuilt
+build:
+  manifest: org.ffmpeg.FFmpeg.yml
+  branch: stable
+  mode: extra-data
+  arches: [x86_64]
+catalog:
+  interface: cli
+  category: AudioVideo
+  tags: [Video, Audio, Conversion, Terminal]
+  stars_repo: FFmpeg/FFmpeg
+update:
+  command: ./resolve-update.sh
+  # flatpark/prebuilt carries one tag line per library; only ffmpeg-full-v*
+  # is this package.
+  stale_ignore: '^(?!ffmpeg-full-)'
+policy:
+  proprietary: false
+  dangerous_permissions:
+    # A command-line tool takes files as paths in its arguments, with no file
+    # chooser; a working directory outside the grant is silently replaced by
+    # the sandbox's empty home (docs/packagers/solutions/command-line-tools.md).
+    - --filesystem=home

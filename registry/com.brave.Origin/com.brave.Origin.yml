@@ -44,7 +44,6 @@ finish-args:
   - --talk-name=org.xfce.ScreenSaver
   - --own-name=org.mpris.MediaPlayer2.brave.*
   - --filesystem=xdg-download
-  - --filesystem=xdg-run/pipewire-0
   - --persist=.pki
   - --env=CHROME_VERSION_EXTRA=stable
   # No GSettings backend is shipped, so proxy settings configured on the host
@@ -69,16 +68,16 @@ modules:
         filename: brave-origin-amd64.zip
         only-arches:
           - x86_64
-        url: https://github.com/brave/brave-browser/releases/download/v1.96.59/brave-origin-1.96.59-linux-amd64.zip
-        sha256: ad71abea5326d15bbe813a1e9592bcf2383f2ecc083a432313ca80b4436d3797
-        size: 186384117
+        url: https://github.com/brave/brave-browser/releases/download/v1.100.59/brave-origin-1.100.59-linux-amd64.zip
+        sha256: 1b07d2dca20d8bc49dc00c9f22e8b9138feb71ca12b450cf8607f7d6497e9ad7
+        size: 200803572
       - type: extra-data
         filename: brave-origin-arm64.zip
         only-arches:
           - aarch64
-        url: https://github.com/brave/brave-browser/releases/download/v1.96.59/brave-origin-1.96.59-linux-arm64.zip
-        sha256: 68d1fb922e0ad25099081a32a7f0611f2657345726590b697eaf6bbb820848ee
-        size: 187065334
+        url: https://github.com/brave/brave-browser/releases/download/v1.100.59/brave-origin-1.100.59-linux-arm64.zip
+        sha256: ddab46f891964af8eacc3da4a84bd7624fb1d35f664fa89157f0a6ee91f61aa2
+        size: 197789945
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

@@ -1,0 +1,40 @@
+id: io.github.nyosegawa.SpeechCpp.CPU
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+command: speech
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Download model weights and serve the local browser interface and audio API.
+  - --share=network
+modules:
+  - name: speech
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 speech-wrapper /app/bin/speech
+      - install -Dm644 io.github.nyosegawa.SpeechCpp.CPU.desktop /app/share/applications/io.github.nyosegawa.SpeechCpp.CPU.desktop
+      - install -Dm644 io.github.nyosegawa.SpeechCpp.CPU.metainfo.xml /app/share/metainfo/io.github.nyosegawa.SpeechCpp.CPU.metainfo.xml
+      - install -Dm644 io.github.nyosegawa.SpeechCpp.CPU.svg /app/share/icons/hicolor/scalable/apps/io.github.nyosegawa.SpeechCpp.CPU.svg
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: speech.zip
+        only-arches:
+          - x86_64
+        url: https://github.com/nyosegawa/speech.cpp/releases/download/v0.11.2/speech-0.11.2-linux-x64-cpu.zip
+        sha256: e04de4380d8a0f1bdd61b1c61b7075363a7cadc78d31d40f64187750b0c39a7d
+        size: 6496394
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: speech-wrapper
+      - type: file
+        path: io.github.nyosegawa.SpeechCpp.CPU.desktop
+      - type: file
+        path: io.github.nyosegawa.SpeechCpp.CPU.metainfo.xml
+      - type: file
+        path: io.github.nyosegawa.SpeechCpp.CPU.svg

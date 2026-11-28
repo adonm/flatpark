@@ -101,4 +101,108 @@ if command -v appstreamcli >/dev/null 2>&1; then
     || { echo "FAIL: metainfo does not validate after the update"; exit 1; }
 fi
 
+# 5b) a resolver without releaseDate still gets a dated <release> (today, UTC):
+#     Flatpak ignores undated releases, which leaves the app's version blank.
+run "$(printf '{"version":"5.0","sources":[{"filename":"app.bin","url":"file://%s/new.bin"}]}' "$tmp")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/app.metainfo.xml" "<release version=\"5.0\" date=\"$(date -u +%F)\">"
+
+# 6) per-arch payloads share a filename; `arch` picks the pin. Adding an aarch64
+#    source next to an existing x86_64 pin creates a new record scoped to it and,
+#    with no version anchor, leaves the unchanged x86_64 pin alone.
+mk_manifest "file://$tmp/old.bin" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+run "$(printf '{"sources":[{"filename":"app.bin","arch":"x86_64","url":"file://%s/old.bin"},{"filename":"app.bin","arch":"aarch64","url":"file://%s/new.bin"}]}' "$tmp" "$tmp")"
+assert_eq "$RC" "0"
+assert_eq "$(grep -c 'filename: app.bin' "$tmp/manifest.yml")" "2"
+arm_block="$(awk '/- aarch64/{f=1} f' "$tmp/manifest.yml")"
+case "$arm_block" in *"sha256: $new_sha"*) ;; *) echo "FAIL: aarch64 pin missing"; exit 1 ;; esac
+x86_block="$(awk '/- x86_64/{f=1} /- aarch64/{f=0} f' "$tmp/manifest.yml")"
+case "$x86_block" in *"sha256: $old_sha"*) ;; *) echo "FAIL: x86_64 pin changed"; exit 1 ;; esac
+
+# 7) once a filename is pinned for two arches, a source without `arch` is
+#    ambiguous and must fail rather than cross-pin.
+run "$(printf '{"version":"9.0","sources":[{"filename":"app.bin","url":"file://%s/new.bin"}]}' "$tmp")"
+assert_eq "$RC" "1"
+
+# 8) same version, but upstream re-uploaded the payload in place: a source that
+#    reports its size re-pins when the size drifts, adds no <release>, and is a
+#    no-op once the pin matches again. Without `size` the version gate holds.
+cp "$tmp/new.bin" "$tmp/recut.bin"
+mk_manifest "file://$tmp/recut.bin" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin"}]}' "$tmp")"
+assert_eq "$RC" "10"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "sha256: $new_sha"
+assert_contains "$tmp/manifest.yml" "size: $new_size"
+assert_eq "$(grep -c '<release ' "$tmp/app.metainfo.xml")" "1"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/recut.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "10"
+
+# 9) same version, same size, but the source moved to another URL -> re-pinned.
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/new.bin","size":%s}]}' "$tmp" "$new_size")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "url: file://$tmp/new.bin"
+
+# 10) same version, same size, bytes replaced in place: only a reported sha256
+#     catches it. Re-pins with no <release>, then is a no-op; a reported digest
+#     the download does not match is an error. A "sha256:" prefix is accepted.
+head -c "$old_size" /dev/zero > "$tmp/samesize.bin"
+same_sha="$(sha256sum "$tmp/samesize.bin" | cut -d' ' -f1)"
+mk_manifest "file://$tmp/samesize.bin" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/samesize.bin","size":%s}]}' "$tmp" "$old_size")"
+assert_eq "$RC" "10"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/samesize.bin","size":%s,"sha256":"sha256:%s"}]}' "$tmp" "$old_size" "$same_sha")"
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "sha256: $same_sha"
+assert_eq "$(grep -c '<release ' "$tmp/app.metainfo.xml")" "1"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/samesize.bin","sha256":"%s"}]}' "$tmp" "$same_sha")"
+assert_eq "$RC" "10"
+run "$(printf '{"version":"1.0","sources":[{"filename":"app.bin","url":"file://%s/samesize.bin","sha256":"%s"}]}' "$tmp" "$old_sha")"
+assert_eq "$RC" "1"
+
+# 11) GitHub release assets: digest + size come from the releases API (served
+#     here by a local stand-in), so nothing is downloaded — the URLs point at
+#     github.com and would fail if fetched. Same version + changed digest ->
+#     re-pinned with no <release>; a version bump pins straight from the API;
+#     an asset without a digest falls back to the version gate.
+gh_url="https://github.com/o/r/releases/download/v1.0/app-linux.bin"
+gh_sha="$(printf '%064d' 7)"
+mk_release() { # <tag> <digest-or-empty> <size>
+  mkdir -p "$tmp/api/repos/o/r/releases/tags"
+  local d=null; [ -n "$2" ] && d="\"sha256:$2\""
+  printf '{"tag_name":"%s","assets":[{"name":"app-linux.bin","size":%s,"digest":%s}]}' "$1" "$3" "$d" \
+    > "$tmp/api/repos/o/r/releases/tags/$1"
+}
+mkdir -p "$tmp/api"
+python3 -u -m http.server 0 --bind 127.0.0.1 --directory "$tmp/api" >"$tmp/http.log" 2>&1 &
+http_pid=$!
+trap 'kill $http_pid 2>/dev/null; rm -rf "$tmp"' EXIT
+for _ in $(seq 50); do grep -q 'port' "$tmp/http.log" && break; sleep 0.1; done
+port="$(sed -n 's/.* port \([0-9]*\).*/\1/p' "$tmp/http.log" | head -n1)"
+export FLATPARK_GITHUB_API="http://127.0.0.1:$port"
+mk_manifest "$gh_url" "$old_sha" "$old_size"
+mk_metainfo "1.0"
+mk_release v1.0 "$old_sha" "$old_size"
+run '{"version":"1.0","sources":[{"filename":"app.bin","url":"'"$gh_url"'"}]}'
+assert_eq "$RC" "10"
+mk_release v1.0 "$gh_sha" "$old_size"
+run '{"version":"1.0","sources":[{"filename":"app.bin","url":"'"$gh_url"'"}]}'
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "sha256: $gh_sha"
+assert_eq "$(grep -c '<release ' "$tmp/app.metainfo.xml")" "1"
+gh_url2="https://github.com/o/r/releases/download/v2.0/app-linux.bin"
+mk_release v2.0 "$new_sha" "$new_size"
+run '{"version":"2.0","sources":[{"filename":"app.bin","url":"'"$gh_url2"'"}]}'
+assert_eq "$RC" "0"
+assert_contains "$tmp/manifest.yml" "sha256: $new_sha"
+assert_contains "$tmp/manifest.yml" "size: $new_size"
+mk_release v2.0 "" "$new_size"
+run '{"version":"2.0","sources":[{"filename":"app.bin","url":"'"$gh_url2"'"}]}'
+assert_eq "$RC" "10"
+unset FLATPARK_GITHUB_API
+
 echo "test_update_pins: PASS"

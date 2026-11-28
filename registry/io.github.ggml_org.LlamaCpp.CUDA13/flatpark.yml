@@ -1,0 +1,25 @@
+id: io.github.ggml_org.LlamaCpp.CUDA13
+name: llama.cpp (CUDA 13)
+summary: Run local language models with NVIDIA CUDA 13 acceleration
+website: https://llama.app
+source_url: https://github.com/ggml-org/llama.cpp
+build:
+  manifest: io.github.ggml_org.LlamaCpp.CUDA13.yml
+  branch: stable
+  mode: extra-data
+  arches: [x86_64]
+catalog:
+  interface: web
+  category: AI
+  tags: [AI, LLM, Inference, CUDA, NVIDIA]
+update:
+  command: ./resolve-update.sh
+  # The resolver follows the stable release's nightly-tag.txt pointer to
+  # the b<N> build upstream picked for it; the newer b<N> builds are the
+  # nightly channel and are skipped on purpose. Should the pointer go
+  # away, the resolver fails instead (stable releases carry no Linux asset).
+  stale_ignore: '^b[0-9]+$'
+policy:
+  proprietary: false
+  dangerous_permissions:
+    - --device=all

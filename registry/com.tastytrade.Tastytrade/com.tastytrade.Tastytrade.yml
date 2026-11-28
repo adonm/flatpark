@@ -1,0 +1,55 @@
+id: com.tastytrade.Tastytrade
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '26.08'
+command: tastytrade
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # The trading platform needs network access and a graphical display.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Electron renders the interface using the GPU.
+  - --device=dri
+  - --unset-env=ELECTRON_RUN_AS_NODE
+modules:
+  - name: tastytrade
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 tastytrade-wrapper /app/bin/tastytrade
+      - install -Dm644 com.tastytrade.Tastytrade.desktop /app/share/applications/com.tastytrade.Tastytrade.desktop
+      - install -Dm644 com.tastytrade.Tastytrade.metainfo.xml /app/share/metainfo/com.tastytrade.Tastytrade.metainfo.xml
+      - install -Dm644 com.tastytrade.Tastytrade.png /app/share/icons/hicolor/512x512/apps/com.tastytrade.Tastytrade.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: tastytrade.deb
+        only-arches:
+          - x86_64
+        url: https://download.tastytrade.com/desktop-2.0/tastytrade-linux-amd64-0.78.0.deb
+        sha256: 8699dd005983278d51c075d2a77638f07ded4b6b39827ed7a5231dd948d23623
+        size: 135066444
+      - type: extra-data
+        filename: tastytrade.deb
+        only-arches:
+          - aarch64
+        url: https://download.tastytrade.com/desktop-2.0/tastytrade-linux-arm64-0.78.0.deb
+        sha256: 6be987c74e4b99e3cb889535753a893a6c118e4e2e42da03abb81c07ce6874b2
+        size: 129876604
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: tastytrade-wrapper
+      - type: file
+        path: com.tastytrade.Tastytrade.desktop
+      - type: file
+        path: com.tastytrade.Tastytrade.metainfo.xml
+      - type: file
+        path: com.tastytrade.Tastytrade.png

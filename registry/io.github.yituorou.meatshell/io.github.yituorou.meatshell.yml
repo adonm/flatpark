@@ -50,30 +50,36 @@ modules:
       # whatever the remote host prints, so a CJK face has to be reachable.
       # Neither org.freedesktop.Platform 26.08 nor a typical non-CJK host ships
       # one, and the app's embedded fallback face is Latin-only — every CJK
-      # glyph comes out as a tofu box. The face is extra-data rather than a
-      # build module so its 19.5 MB stay out of FlatPark's repository for a file
-      # jsDelivr already serves; apply_extra stages it into /app/extra/fonts and
-      # fonts.conf adds that directory behind the host's own fonts. Same
-      # tag-pinned URL and sha256 as registry/dev.navop.Navop.
+      # glyph comes out as a tofu box. The face comes from the noto-fonts stack
+      # in flatpark/prebuilt (docs/packagers/prebuilt.md), as extra-data so its
+      # 11 MB stay out of FlatPark's repository; apply_extra unpacks it to
+      # /app/extra/noto-fonts and fonts.conf adds its share/fonts behind the
+      # host's own fonts. It used to be pinned from jsDelivr, which went 404
+      # (#1316).
       #
       # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
       # that block from the resolver's sources and would drop anything else in
       # it.
       - type: extra-data
-        filename: NotoSansCJK-Regular.ttc
-        only-arches:
-          - x86_64
-        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTC/NotoSansCJK-Regular.ttc
-        sha256: b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a
-        size: 19484784
+        filename: noto-fonts.tar.xz
+        url: https://github.com/flatpark/prebuilt/releases/download/noto-fonts-v1/noto-fonts-noto-fonts-v1-noarch.tar.xz
+        sha256: b736ac362d9fad5c53f7d29aa3a868c53c610319a2aff5ece295449e53700259
+        size: 11197404
       # BEGIN MANAGED EXTRA-DATA
       - type: extra-data
         filename: meatshell.tar.gz
         only-arches:
           - x86_64
-        url: https://github.com/yituorou/meatshell/releases/download/v0.7.4/meatshell-v0.7.4-linux-x86_64.tar.gz
-        sha256: dce9dacb7e212cce53dd25552bdacfb9bcff7dcf2b5f422f987ff5506e1cc4d9
-        size: 21439810
+        url: https://github.com/yituorou/meatshell/releases/download/v0.8.5/meatshell-v0.8.5-linux-x86_64.tar.gz
+        sha256: ca261a724c6fb8fe7a3b035dc3be24c05c0f2bc0c3212d59c3f550636295ffc0
+        size: 27031547
+      - type: extra-data
+        filename: meatshell.tar.gz
+        only-arches:
+          - aarch64
+        url: https://github.com/yituorou/meatshell/releases/download/v0.8.5/meatshell-v0.8.5-linux-aarch64.tar.gz
+        sha256: 71e89949126eaec63d7e10189f32c87b0d9c4c1126768c69d4cf97dbc7a36696
+        size: 25944452
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

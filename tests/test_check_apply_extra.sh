@@ -45,7 +45,7 @@ build:
   branch: stable
   mode: extra-data
 catalog:
-  category: Utilities
+  category: Utility
 EOF
 
 cat >"$app/$id.yml" <<EOF
@@ -115,10 +115,45 @@ fi
 assert_contains "$tmp/log" "size mismatch"
 sed -i "s/^        size: .*/        size: $real_size/" "$app/$id.yml"
 
-# 4. An app with no apply_extra.sh is skipped, not failed.
+# 4. A download that fails exits 2, distinct from a broken payload, so
+#    update-check.yml can retry it next run instead of filing "no longer unpacks".
+sed -i "s#payload.zip\$#payload-gone.zip#" "$app/$id.yml"
+rc=0; run_check || rc=$?
+if [ "$rc" != 2 ]; then
+    echo "FAIL: a failed download exited $rc, want 2"
+    cat "$tmp/log"; exit 1
+fi
+assert_contains "$tmp/log" "download failed"
+sed -i "s#payload-gone.zip\$#payload.zip#" "$app/$id.yml"
+
+# 5. An app with no apply_extra.sh is skipped, not failed.
 rm "$app/apply_extra.sh"
 sed -i 's#install -Dm755 apply_extra.sh /app/bin/apply_extra#true#' "$app/$id.yml"
 assert_ok run_check
 assert_contains "$tmp/log" "nothing to check"
+
+# 6. A shared extension (build.shared) unpacks on its stand-in's runtime: its
+#    manifest's runtime is the stand-in, which is never installed here.
+write_apply "--no-same-owner"
+sed -i 's#^      - true$#      - install -Dm755 apply_extra.sh /app/bin/apply_extra#' "$app/$id.yml"
+sed -i 's/^  mode: extra-data/&\n  shared: true/' "$app/flatpark.yml"
+sed -i "s/^runtime: .*/runtime: $id.BuildParent/; s/^runtime-version: .*/runtime-version: master/" "$app/$id.yml"
+cat >"$app/$id.BuildParent.yml" <<EOF
+app-id: $id.BuildParent
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+add-extensions:
+  $id:
+    directory: lib/x
+EOF
+if ! run_check; then
+    echo "FAIL: check-apply-extra did not unpack a shared extension on its stand-in's runtime"
+    cat "$tmp/log"; exit 1
+fi
+assert_contains "$tmp/log" "apply_extra OK"
+sed -i "s/^runtime-version: .*/runtime-version: '25.99'/" "$app/$id.BuildParent.yml"
+if run_check; then echo "FAIL: check-apply-extra ignored the stand-in's runtime"; cat "$tmp/log"; exit 1; fi
+assert_contains "$tmp/log" "runtime not installed: org.freedesktop.Platform//25.99"
 
 echo "test_check_apply_extra: PASS"

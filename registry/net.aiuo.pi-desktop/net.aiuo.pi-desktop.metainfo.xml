@@ -46,23 +46,47 @@
   </provides>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/image/readme/home.webp</image>
+      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/public/readme/home.webp</image>
       <caption>Home screen with projects and sessions</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/image/readme/chat_en.png</image>
+      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/public/readme/chat_en.webp</image>
       <caption>A session streaming its transcript</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/image/readme/model_en.png</image>
+      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/public/readme/model_en.webp</image>
       <caption>Switching model and reasoning level inside a session</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/image/readme/plugins_en.png</image>
+      <image>https://raw.githubusercontent.com/vastsa/PI-Desktop/main/docs/public/readme/plugins_en.webp</image>
       <caption>The plugin marketplace</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.23.0" date="2026-11-19">
+      <description></description>
+    </release>
+    <release version="0.22.0" date="2026-11-08">
+      <description></description>
+    </release>
+    <release version="0.21.0" date="2026-10-24">
+      <description></description>
+    </release>
+    <release version="0.20.1" date="2026-10-13">
+      <description></description>
+    </release>
+    <release version="0.18.0" date="2026-10-10">
+      <description></description>
+    </release>
+    <release version="0.17.0" date="2026-10-07">
+      <description></description>
+    </release>
+    <release version="0.16.1" date="2026-10-04">
+      <description></description>
+    </release>
+    <release version="0.16.0" date="2026-10-01">
+      <description></description>
+    </release>
     <release version="0.15.10" date="2026-09-28">
       <description></description>
     </release>

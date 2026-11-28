@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+app=/app/extra/eudic
+[ -x "$app/eudic" ] || { echo 'Eudic is not installed correctly' >&2; exit 1; }
+
+# Seed only a new profile; never override an existing user's settings.
+config_dir="${XDG_DATA_HOME:-$HOME/.local/share}/Francochinois/eudic"
+if [ ! -e "$config_dir/config.ini" ]; then
+    mkdir -p "$config_dir"
+    (umask 077; set -C; printf '[COMMON]\nAutoCheckUpdate=false\n' > "$config_dir/config.ini") 2>/dev/null || :
+fi
+
+# Mirror the deb AppRun plugin paths; use its matching bundled scanner.
+export GST_PLUGIN_SYSTEM_PATH="$app/gstreamer-1.0"
+export GST_PLUGIN_PATH="$app/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$app/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner"
+# Keep Flatpak's graphics driver paths after the application's own libraries.
+export LD_LIBRARY_PATH="$app${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Let Xcursor find host and user themes without forcing a particular theme or size;
+# Flatpak exposes ~/.local/share/icons and /usr/share/icons under /run/host.
+export XCURSOR_PATH="/run/host/user-share/icons:/run/host/share/icons:/usr/share/icons"
+# Only the xcb plugin is bundled; finish-args drops the host value, a user's
+# `flatpak override --env=QT_QPA_PLATFORM=...` still wins.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+exec "$app/eudic" "$@"

@@ -1,0 +1,51 @@
+id: com.google.AndroidPlatformTools
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+command: adb
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # ADB server connections and wireless device debugging.
+  - --share=network
+  # Direct USB access for ADB and fastboot, declared in flatpark.yml.
+  - --device=all
+  # APKs, images and device transfers are passed by path: the whole home
+  # folder. ADB keys then live in the real ~/.android, shared with a host adb
+  # (--persist is ignored once home is granted).
+  - --filesystem=home
+modules:
+  - name: platform-tools
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 platform-tools-wrapper /app/bin/adb
+      - for tool in fastboot etc1tool hprof-conv make_f2fs make_f2fs_casefold mke2fs sqlite3; do ln -s adb /app/bin/$tool; done
+      - install -Dm755 platform-tools-terminal /app/bin/platform-tools-terminal
+      - install -Dm644 com.google.AndroidPlatformTools.desktop /app/share/applications/com.google.AndroidPlatformTools.desktop
+      - install -Dm644 com.google.AndroidPlatformTools.metainfo.xml /app/share/metainfo/com.google.AndroidPlatformTools.metainfo.xml
+      - install -Dm644 com.google.AndroidPlatformTools.svg /app/share/icons/hicolor/scalable/apps/com.google.AndroidPlatformTools.svg
+    sources:
+      # Versioned URL is byte-identical to platform-tools-latest-linux.zip at packaging.
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: platform-tools.zip
+        only-arches:
+          - x86_64
+        url: https://dl.google.com/android/repository/platform-tools_r37.0.3-linux.zip
+        sha256: 214548146cadb2ca3508143d8a1d4be4c59de5bb837253e3ede89ed74cf450d1
+        size: 9571024
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: platform-tools-wrapper
+      - type: file
+        path: platform-tools-terminal
+      - type: file
+        path: com.google.AndroidPlatformTools.desktop
+      - type: file
+        path: com.google.AndroidPlatformTools.svg
+      - type: file
+        path: com.google.AndroidPlatformTools.metainfo.xml

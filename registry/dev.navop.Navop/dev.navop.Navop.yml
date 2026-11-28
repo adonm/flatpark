@@ -59,30 +59,29 @@ modules:
       # Navop's font fallback list asks for "Noto Sans CJK SC" / "Noto Sans Mono
       # CJK SC" for CJK text, and neither the GNOME runtime nor a typical
       # non-CJK host ships them - GPUI draws the missing glyphs as tofu. The
-      # face is extra-data rather than a build module so its 19.5 MB stay out of
-      # FlatPark's repository for a file jsDelivr already serves; apply_extra
-      # stages it into /app/extra/fonts and fonts.conf adds that directory on
-      # top of the runtime's own configuration. Same tag-pinned URL and sha256
-      # as com.longbridgeapp.LongbridgePro.
+      # face comes from the noto-fonts stack in flatpark/prebuilt
+      # (docs/packagers/prebuilt.md), as extra-data so its 11 MB stay out of
+      # FlatPark's repository; apply_extra unpacks it to /app/extra/noto-fonts
+      # and fonts.conf adds its share/fonts on top of the runtime's own
+      # configuration. It used to be pinned from jsDelivr, which went 404
+      # (#1316).
       #
       # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
       # that block from the resolver's sources and would drop anything else in
       # it.
       - type: extra-data
-        filename: NotoSansCJK-Regular.ttc
-        only-arches:
-          - x86_64
-        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTC/NotoSansCJK-Regular.ttc
-        sha256: b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a
-        size: 19484784
+        filename: noto-fonts.tar.xz
+        url: https://github.com/flatpark/prebuilt/releases/download/noto-fonts-v1/noto-fonts-noto-fonts-v1-noarch.tar.xz
+        sha256: b736ac362d9fad5c53f7d29aa3a868c53c610319a2aff5ece295449e53700259
+        size: 11197404
       # BEGIN MANAGED EXTRA-DATA
       - type: extra-data
         filename: navop.deb
         only-arches:
           - x86_64
-        url: https://github.com/feigeCode/navop/releases/download/v0.19.4/navop_0.19.4_amd64.deb
-        sha256: 0af852648918f7e329d4fc5a7948ac7753fcaa721693ab51a284a93f8b8a48e0
-        size: 44516796
+        url: https://github.com/feigeCode/navop/releases/download/v0.24.3/navop_0.24.3_amd64.deb
+        sha256: 7706aec43333ee30aab07f891f704eec0a70dfecd00271f79855cc822c3b7e27
+        size: 53435184
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

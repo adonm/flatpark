@@ -1,0 +1,66 @@
+id: io.github.billsecond.mailcraft
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+command: mailcraft
+separate-locales: false
+build-options:
+  no-debuginfo: true
+# egui/wgpu. The binary needs only glibc from the runtime. Wayland, X11,
+# xkbcommon, EGL and Vulkan are loaded at run time.
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # IMAP and SMTP. The optional local control server is on 127.0.0.1.
+  - --share=network
+  - --device=dri
+  # Files passed by path (the command line, Open Recent, Save next to the
+  # original) in the usual folders. Open and Save also use the file chooser.
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-pictures
+  # Passwords and refresh tokens go to the desktop keyring, not a file.
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  - name: mailcraft
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 mailcraft-wrapper /app/bin/mailcraft
+      - install -Dm755 mailcraft-cli-wrapper /app/bin/mailcraft-cli
+      - install -Dm644 io.github.billsecond.mailcraft.desktop /app/share/applications/io.github.billsecond.mailcraft.desktop
+      - install -Dm644 io.github.billsecond.mailcraft.metainfo.xml /app/share/metainfo/io.github.billsecond.mailcraft.metainfo.xml
+      - install -Dm644 io.github.billsecond.mailcraft.svg /app/share/icons/hicolor/scalable/apps/io.github.billsecond.mailcraft.svg
+      - install -Dm644 io.github.billsecond.mailcraft.png /app/share/icons/hicolor/512x512/apps/io.github.billsecond.mailcraft.png
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: mailcraft.tar.gz
+        only-arches:
+          - x86_64
+        url: https://github.com/UCSLabs/mailcraft/releases/download/v0.15.0/mailcraft-0.15.0-linux-x86_64.tar.gz
+        sha256: d9f9321d6dfe636fb7ad0758517311a416e8906d370d4fbbdefb0cd268fd5081
+        size: 41232293
+      - type: extra-data
+        filename: mailcraft.tar.gz
+        only-arches:
+          - aarch64
+        url: https://github.com/UCSLabs/mailcraft/releases/download/v0.15.0/mailcraft-0.15.0-linux-aarch64.tar.gz
+        sha256: 1b0bf8d9aef8e92460b83e46e5dbd39ff8aedb4d18a2ccd583f0bd99e6079413
+        size: 38825803
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: mailcraft-wrapper
+      - type: file
+        path: mailcraft-cli-wrapper
+      - type: file
+        path: io.github.billsecond.mailcraft.desktop
+      - type: file
+        path: io.github.billsecond.mailcraft.metainfo.xml
+      - type: file
+        path: io.github.billsecond.mailcraft.svg
+      - type: file
+        path: io.github.billsecond.mailcraft.png

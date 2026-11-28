@@ -1,7 +1,8 @@
 # Untrusted gate: runs on every PR, including forks. NO secrets are referenced
 # here, so a malicious PR can never reach the signing key or R2/Pages creds.
-# It validates, tests, builds the changed apps and uploads installable bundles;
-# the real signed build+publish happens on push to main.
+# It validates, tests, builds the changed apps and uploads the built repo, which
+# pr-test-repo.yml turns into a test repository when the PR is labeled
+# needs-testers; the real signed build+publish happens on push to main.
 name: pr-checks
 
 on:
@@ -17,15 +18,25 @@ jobs:
     # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
     # 那边的源恢复之后换回 ubuntu-latest。
     runs-on: ubuntu-26.04
+    # node, ostree and rclone come with the image. The base target has no
+    # flatpak-builder, so the build tests self-skip here as they always did.
+    container: ghcr.io/flatpark/ci:base
+    # A container job's run steps default to sh; these scripts are bash.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the dead-link check diffs against the PR base
-      - uses: actions/setup-node@v6
+      # What setup-node's `cache: npm` did; node itself is in the image.
+      - name: Restore npm cache
+        uses: actions/cache@v6
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: site/package-lock.json
+          path: ~/.npm
+          key: npm-${{ hashFiles('site/package-lock.json') }}
+          restore-keys: |
+            npm-
       - name: Validate every registry descriptor
         run: |
           set -e
@@ -34,14 +45,45 @@ jobs:
             echo "validate $d"
             node scripts/read-descriptor.mjs "$d" >/dev/null
           done
+      # Every descriptor is audited, but only the apps this PR touches can fail
+      # it: an app already broken on main (e.g. merged from a branch that
+      # predates a new guardrail) is a warning here, not a block on every
+      # unrelated PR. A PR that changes the auditor itself is strict catalog-wide.
+      # Each FAIL line of a blocking failure is also an error annotation on the
+      # app's flatpark.yml, so the reason shows on the PR instead of only deep
+      # in a log of every app.
       - name: Audit every registry descriptor (review-bar guardrails)
         run: |
           set -e
           shopt -s nullglob
+          base="$(git rev-parse HEAD^1)"
+          strict_all=0
+          # The flatpark-spawn allow-list is read by the audit: taking an app off
+          # it has to fail that app here, not only on its next PR.
+          git diff --quiet "$base" HEAD -- scripts/audit-descriptor.mjs scripts/read-descriptor.mjs scripts/catalog-sections.mjs \
+            scripts/read-extension-points.mjs config/flatpark-spawn.yml || strict_all=1
+          changed=" $(./scripts/changed-apps.sh --any-change "$base" HEAD | tr '\n' ' ') "
+          rc=0
+          log="$(mktemp)"
           for d in registry/*/flatpark.yml; do
+            id="${d#registry/}"; id="${id%/flatpark.yml}"
             echo "audit $d"
-            node scripts/audit-descriptor.mjs "$d"   # exit 1 on hard fail; warnings print but pass
+            # exit 1 on hard fail; warnings print but pass
+            if node scripts/audit-descriptor.mjs "$d" 2>"$log"; then
+              cat "$log" >&2; continue
+            fi
+            cat "$log" >&2
+            if [ "$strict_all" = 1 ] || [[ "$changed" == *" $id "* ]]; then
+              rc=1
+              sed -n 's/^FAIL: //p' "$log" | while IFS= read -r m; do
+                m="${m//'%'/%25}"
+                echo "::error file=$d,title=Descriptor audit failed: $id::$m"
+              done
+            else
+              echo "::warning title=Audit failure on an app this PR does not touch::$id fails the audit on the base branch; fix it in its own PR"
+            fi
           done
+          exit $rc
       - name: Check shield flags against the approvals doc
         run: ./scripts/check-approvals.sh
       - name: Install site deps
@@ -51,17 +93,11 @@ jobs:
         run: bash tests/run-tests.sh
       # Scoped to the apps this PR touches (any file, not just build inputs):
       # a full-catalog sweep per PR is O(catalog) upstream fetches and lets an
-      # unrelated flaky upstream block the PR. The weekly link-check workflow
-      # still sweeps everything.
-      - name: Dead-link check (changed apps only)
-        run: |
-          ids="$(./scripts/changed-apps.sh --any-change \
-                   "${{ github.event.pull_request.base.sha }}" HEAD | tr '\n' ' ')"
-          if [ -z "$ids" ]; then
-            echo "no app changes; skipping link check"
-          else
-            ./scripts/check-links.sh $ids
-          fi
+      # unrelated flaky upstream block the PR. Within those apps, only links the
+      # PR itself added can fail it; one that was already dead on main is a
+      # warning here and belongs to the daily link-check workflow's alert.
+      - name: Dead-link check (links this PR adds)
+        run: ./scripts/check-links-pr.sh "$(git rev-parse HEAD^1)" HEAD
 
   # Tripwire: a PR that touches CI-executed automation is gated. Two surfaces
   # qualify, and the difference matters:
@@ -79,7 +115,7 @@ jobs:
   # contributor may bring a resolver inside a brand-new registry/<id>/ dir; they
   # may not edit one the repo already trusts. update.command shape is enforced
   # separately and unconditionally by scripts/audit-descriptor.mjs, and every
-  # resolver — new or not — is still read as code per docs/pr-review.md Phase 4.2.
+  # resolver — new or not — is still read as code per docs/reviewers/review-runbook.md Phase 4.2.
   #
   # For a trusted author (OWNER / MEMBER / COLLABORATOR) a hit is a notice, not a
   # failure, so the maintainer's own infra PRs aren't blocked. No secrets;
@@ -98,7 +134,11 @@ jobs:
           fetch-depth: 0
       - name: Gate repo automation and existing-app resolver changes
         run: |
-          base="${{ github.event.pull_request.base.sha }}"
+          # HEAD is the refs/pull/N/merge checkout; its first parent is the main tip
+          # this run merged onto. pull_request.base.sha is frozen at the last push to
+          # the PR, so once main moves (a pin refresh, another app) diffing against it
+          # drags in every app main touched since.
+          base="$(git rev-parse HEAD^1)"
           assoc="${{ github.event.pull_request.author_association }}"
 
           # True when nothing existed under registry/<id>/ at the base commit.
@@ -109,6 +149,9 @@ jobs:
             [ -n "$f" ] || continue
             id="${f#registry/}"; id="${id%%/*}"
             case "$f" in
+              # Collections are site-only data (rendered, never executed), so a
+              # packager may add their app to one; a maintainer still reviews it.
+              config/collections.yml) ;;
               .github/*|scripts/*|config/*)
                 flagged="${flagged}  - ${f} (repo-wide automation)"$'\n' ;;
               registry/*/resolve-update.sh)
@@ -131,37 +174,126 @@ jobs:
             OWNER|MEMBER|COLLABORATOR)
               echo "::notice::Automation change by a trusted author ($assoc) — surfaced for review, not blocking." ;;
             *)
-              echo "::error::External author ($assoc) modified repo-wide automation or an existing app's resolver. A maintainer must review per docs/pr-review.md (Phase 1 high-scrutiny) before merge. Adding a resolver inside a new registry/<id>/ directory does not trip this gate."
+              echo "::error::External author ($assoc) modified repo-wide automation or an existing app's resolver. A maintainer must review per docs/reviewers/review-runbook.md (Phase 1 high-scrutiny) before merge. Adding a resolver inside a new registry/<id>/ directory does not trip this gate."
               exit 1 ;;
           esac
 
-  # Build the changed apps to catch manifest breakage BEFORE merge, and upload an
-  # installable single-file bundle per app so the change can be test-installed
-  # (extra-data is not embedded — it's fetched on install — so bundles stay tiny).
-  # Runs for fork PRs too: fork `pull_request` runs get NO secrets and a read-only
-  # token, and the build is signed with a throwaway in-job key, so the real
-  # signing key and R2/Pages creds are never exposed. Untrusted build-commands are
-  # gated by GitHub's "require approval for fork PR workflows" setting — approve a
-  # fork run only after reviewing its manifest.
-  build-changed:
-    # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了:apt-get update 全线
-    # Ign,退回 archive.ubuntu.com 后拉索引时停住,publish #211 就这样零输出吊了
-    # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
-    # 那边的源恢复之后换回 ubuntu-latest。
+  # Run the resolver of each app whose resolve-update.sh or flatpark.yml this PR
+  # touches (a new app touches both), and check its pick against upstream with
+  # check-stale.mjs: a resolver that already lands on an old release, or one
+  # that fails, is cheaper to fix here than as a sweep alert after merge. Only
+  # those apps run; a pin refresh (manifest + metainfo only) runs none.
+  # Untrusted code, same footing as build-changed: no secrets, read-only token,
+  # fork runs gated by the approval setting.
+  resolver-check:
+    # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了, 见上面 lint-and-test。
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      # Decide first, install after: a PR with no build-relevant app changes
-      # skips the whole toolchain setup (changed-apps.sh only needs git+awk).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Run the resolvers this PR touches and check their picks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # HEAD^1 is the base this run merged onto, as in the audit step above.
+          base="$(git rev-parse HEAD^1)"
+          ids="$(git diff --name-only "$base" HEAD -- 'registry/*/resolve-update.sh' 'registry/*/flatpark.yml' \
+                   | cut -d/ -f2 | sort -u)"
+          resolved="$RUNNER_TEMP/resolved.tsv"; : > "$resolved"
+          rc=0; n=0
+          for id in $ids; do
+            [ -f "registry/$id/flatpark.yml" ] || continue   # app removed
+            cmd="$(node scripts/read-descriptor.mjs "registry/$id/flatpark.yml" | sed -n "s/^_FP_UPDATE_COMMAND='\(.*\)'$/\1/p")"
+            [ -n "$cmd" ] || { echo "$id: no update command"; continue; }
+            n=$((n+1))
+            echo "::group::resolve $id"
+            if out="$(cd "registry/$id" && timeout 180 "$cmd")"; then
+              printf '%s\n' "$out"
+              printf '%s\t%s\n' "$id" "$(printf '%s' "$out" | tr '\t\n' '  ')" >> "$resolved"
+            else
+              echo "::error file=registry/$id/resolve-update.sh,title=Resolver failed: $id::the resolver exited non-zero; run it in registry/$id/ with GITHUB_TOKEN set"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          [ "$n" -gt 0 ] || { echo "No resolver touched by this PR."; exit 0; }
+          node scripts/check-stale.mjs "$resolved" > "$RUNNER_TEMP/stale.tsv"
+          while IFS=$'\t' read -r id picked newer; do
+            echo "::error file=registry/$id/resolve-update.sh,title=Resolver picked an old release: $id::picked $picked, but upstream has $newer with a Linux build. Match the new naming, or set update.stale_ignore with a reason (docs/packagers/basics.md#resolve-updatesh)"
+            rc=1
+          done < "$RUNNER_TEMP/stale.tsv"
+          [ "$rc" = 0 ] && echo "$n resolver(s) picked upstream's newest release."
+          exit $rc
+
+  # Build the changed apps to catch manifest breakage BEFORE merge, and upload
+  # the OSTree repo they were exported to (flatpak-repo-<arch>-pr<N>, 7 days).
+  # A PR labeled needs-testers gets a test repository made from it by
+  # pr-test-repo.yml: an extra-data app can only be installed by a repo pull,
+  # which is what fetches its extra-data (a .flatpak bundle cannot carry it).
+  # Runs for fork PRs too: fork `pull_request` runs get NO secrets and a read-only
+  # token, and the build is signed with a throwaway in-job key, so the real
+  # signing key and R2/Pages creds are never exposed. Untrusted build-commands are
+  # gated by GitHub's "require approval for fork PR workflows" setting — approve a
+  # fork run (in the UI, or /approve-ci from approve-ci.yml) only after the checks
+  # in docs/reviewers/triage.md.
+  #
+  # One leg per arch, each on a native runner: x86_64 builds every changed app,
+  # aarch64 only the ones whose build.arches opt in (its repo is what an arm
+  # user test-installs before the app goes live).
+  build-changed:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了:apt-get update 全线
+          # Ign,退回 archive.ubuntu.com 后拉索引时停住,publish #211 就这样零输出吊了
+          # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
+          # 那边的源恢复之后换回 ubuntu-latest。
+          - arch: x86_64
+            runner: ubuntu-26.04
+          # The arm images take apt from ports.ubuntu.com, not that mirror.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    name: build-changed (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    # The flatpak toolchain comes with the image, the distro flatpak-builder
+    # rather than the Flathub app (.github/ci-image/Dockerfile). Privileged for
+    # bwrap and rofiles-fuse; untrusted build-commands get no more than they
+    # had on the bare runner, which has passwordless sudo.
+    container:
+      image: ghcr.io/flatpark/ci:build
+      options: --privileged
+    # A container job's run steps default to sh; these scripts are bash.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Determine changed apps
         id: changed
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          base="${{ github.event.pull_request.base.sha }}"
+          # HEAD is the refs/pull/N/merge checkout; its first parent is the main tip
+          # this run merged onto. pull_request.base.sha is frozen at the last push to
+          # the PR, so once main moves (a pin refresh, another app) diffing against it
+          # drags in every app main touched since.
+          base="$(git rev-parse HEAD^1)"
           ids="$(./scripts/changed-apps.sh "$base" HEAD | tr '\n' ' ')"
+          if [ -n "$ids" ]; then
+            ids="$(./scripts/scan-registry.sh --ids --arch "$ARCH" $ids | tr '\n' ' ')"
+          fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
-          echo "changed apps: ${ids:-<none>}"
+          echo "changed apps for $ARCH: ${ids:-<none>}"
           # Apps where an unpack script meets a tree it has not been run against:
           # a new submission, a pin bump to an artifact no apply_extra has ever
           # unpacked (both show up as a changed `sha256:` line), or an edit to
@@ -170,7 +302,8 @@ jobs:
           # pin refresh shipped it, and users got `apply_extra script failed, exit
           # status 256` on update (issue #130). The check downloads the full
           # artifact (hundreds of MB for some apps), so it stays scoped to those
-          # two signals — a wrapper or descriptor edit does not pull it in.
+          # signals plus a change to build.arches (an arch opted in has never
+          # unpacked its pins) — other wrapper or descriptor edits do not pull it in.
           # No grep -q: with pipefail, grep closing the pipe on its first match
           # can fail the pipeline on SIGPIPE even though it matched.
           payload_ids=""
@@ -178,28 +311,27 @@ jobs:
             app_diff="$(git diff -U0 --name-only "$base" HEAD -- "registry/$id/apply_extra.sh")"
             pin_diff="$(git diff -U0 "$base" HEAD -- "registry/$id/" \
                           | grep -E '^[+-][[:space:]]*sha256:' || true)"
-            if [ -n "$pin_diff" ] || [ -n "$app_diff" ]; then
+            # An app newly opted into an arch has pins this arch never unpacked.
+            arch_diff="$(git diff -U0 "$base" HEAD -- "registry/$id/flatpark.yml" \
+                          | grep -E '^[+-][[:space:]]*arches:' || true)"
+            # An extension unpacks on its parent's runtime, which this PR may move;
+            # a shared extension on its stand-in's (registry/<id>/<id>.BuildParent.yml).
+            parent_moved=""
+            if ( . scripts/lib/common.sh; load_config "$PWD"; load_app "$id"
+                 { [ -n "$APP_EXTENDS" ] && runtime_moved "$APP_EXTENDS" "$base" HEAD; } ||
+                 { [ -n "$APP_SHARED" ] && [ -n "$(git diff -U0 "$base" HEAD -- "$APP_BUILD_PARENT" \
+                       | grep -E '^[+-](runtime|runtime-version):' || true)" ]; } ); then
+              parent_moved=1
+            fi
+            if [ -n "$pin_diff" ] || [ -n "$app_diff" ] || [ -n "$arch_diff" ] || [ -n "$parent_moved" ]; then
               payload_ids="$payload_ids $id"
             fi
           done
           echo "payload_ids=${payload_ids# }" >> "$GITHUB_OUTPUT"
           echo "apps needing an apply_extra run: ${payload_ids:-<none>}"
-      - uses: actions/setup-node@v6
+      - name: Add the Flathub remote
         if: steps.changed.outputs.ids != ''
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-      - name: Install the Flatpak build toolchain
-        if: steps.changed.outputs.ids != ''
-        run: |
-          sudo apt-get update
-          # The distro package, not the Flathub app a developer machine uses:
-          # the sandboxed builder reaches the host's flatpak over the session
-          # bus, and this runner has none it can use. build-app.sh picks
-          # whichever is present.
-          sudo apt-get install -y flatpak flatpak-builder ostree
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+        run: flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
       - name: Build changed apps (throwaway signing key, no publish)
         if: steps.changed.outputs.ids != ''
         run: |
@@ -220,24 +352,21 @@ jobs:
       - name: Check apply_extra against the pinned payload
         if: steps.changed.outputs.payload_ids != ''
         run: ./scripts/check-apply-extra.sh ${{ steps.changed.outputs.payload_ids }}
-      - name: Bundle changed apps into installable .flatpak files
+      # The repo build-app.sh exported (archive-z2, signed with the throwaway
+      # key above), packed the way publish.yml hands builds over. For a PR
+      # labeled needs-testers, pr-test-repo.yml re-pulls the PR's own refs out
+      # of it into a test repository signed with the testing key; nothing in
+      # this tar is trusted there (scripts/test-repo-publish.sh).
+      - name: Pack the built repo
         if: steps.changed.outputs.ids != ''
-        run: |
-          . scripts/lib/common.sh
-          load_config "$PWD"            # sets REPO_DIR=$PWD/out/repo, REGISTRY_DIR
-          mkdir -p out/bundles
-          for id in ${{ steps.changed.outputs.ids }}; do
-            load_app "$id"             # resolves APP_BRANCH the same way build-app.sh did
-            flatpak build-bundle \
-              --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-              "$REPO_DIR" "out/bundles/$id.flatpak" "$id" "$APP_BRANCH"
-          done
-          ls -lah out/bundles
-      - name: Upload installable bundles
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: tar -C out -cf "flatpak-repo-$ARCH.tar" repo
+      - name: Upload the built repo
         if: steps.changed.outputs.ids != ''
         uses: actions/upload-artifact@v7
         with:
-          name: flatpak-bundles-pr${{ github.event.pull_request.number }}
-          path: out/bundles/*.flatpak
-          retention-days: 14
+          name: flatpak-repo-${{ matrix.arch }}-pr${{ github.event.pull_request.number }}
+          path: flatpak-repo-${{ matrix.arch }}.tar
+          retention-days: 7
           if-no-files-found: error

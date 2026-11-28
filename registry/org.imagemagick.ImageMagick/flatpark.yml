@@ -1,0 +1,24 @@
+id: org.imagemagick.ImageMagick
+name: ImageMagick
+summary: Create, convert and edit images from the command line
+website: https://imagemagick.org
+source_url: https://github.com/ImageMagick/ImageMagick
+build:
+  manifest: org.imagemagick.ImageMagick.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  interface: cli
+  category: Graphics
+  tags:
+    - Image Processing
+    - Command Line
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: false
+  dangerous_permissions:
+    # A command-line tool takes files as paths in its arguments, with no file
+    # chooser; a working directory outside the grant is silently replaced by
+    # the sandbox's empty home (docs/packagers/solutions/command-line-tools.md).
+    - --filesystem=home

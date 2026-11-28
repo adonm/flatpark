@@ -1,0 +1,4 @@
+#!/bin/sh
+printf '%s\n' 'FFmpeg terminal' 'Run ffmpeg or ffprobe with your options. Files in your home folder are accessible.' 'Type exit or press Ctrl+D to close.' ''
+cd "$HOME" || exit 1
+exec /bin/sh -i

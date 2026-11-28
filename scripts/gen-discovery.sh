@@ -6,8 +6,11 @@ load_app "${1:?usage: gen-discovery.sh <app-id>}"
 need gpg; need base64
 export GNUPGHOME="$GNUPGHOME_DIR"
 mkdir -p "$OUT_DIR" "$REPO_DIR"
-gpgkey_b64="$(gpg --export "$KEY_EMAIL" | base64 -w0)"
-[ -n "$gpgkey_b64" ] || die "no exportable key (run gen-signing-key.sh first)"
+# The public keys of the signing keys: both during a key rotation, so a new
+# user trusts the incoming key from the start (signing_keys in lib/common.sh).
+pubkeys="$(mktemp)"; trap 'rm -f "$pubkeys"' EXIT
+export_signing_pubkeys "$pubkeys"
+gpgkey_b64="$(base64 -w0 < "$pubkeys")"
 
 repo_file="$REPO_DIR/flatpark.flatpakrepo"
 ref_file="$REPO_DIR/$APP_ID.flatpakref"
@@ -17,9 +20,14 @@ cat > "$repo_file" <<EOF
 Title=$REPO_TITLE
 Url=$REPO_URL
 Homepage=$REPO_HOMEPAGE
+Icon=$REPO_ICON
 Comment=$REPO_COMMENT
 GPGKey=$gpgkey_b64
 EOF
+
+# An extension is a runtime ref, so a flatpakref to it has to say so.
+is_runtime=false
+[ -z "$APP_EXTENDS$APP_SHARED" ] || is_runtime=true
 
 # SuggestRemoteName pins the auto-added remote to our canonical name; without
 # it flatpak derives one from the ref (e.g. "tabby-origin") and every
@@ -33,7 +41,7 @@ Url=$REPO_URL
 SuggestRemoteName=$REMOTE_NAME
 RuntimeRepo=$RUNTIME_REPO_URL
 GPGKey=$gpgkey_b64
-IsRuntime=false
+IsRuntime=$is_runtime
 EOF
 cp "$repo_file" "$OUT_DIR/flatpark.flatpakrepo"
 cp "$ref_file" "$OUT_DIR/$APP_ID.flatpakref"

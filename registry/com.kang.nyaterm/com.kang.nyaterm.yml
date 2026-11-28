@@ -1,0 +1,129 @@
+id: com.kang.nyaterm
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+command: nyaterm
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # NyaTerm 2.x is a native Rust window on GPUI (Vulkan/GL through wgpu,
+  # Wayland or X11) plus RDP, VNC, MCP and Android helper processes, all from
+  # the same .deb. The window links only gtk-3, dbus, xcb and
+  # xkbcommon from the GNOME runtime and dlopen-s the rest.
+  - --share=ipc
+  # SSH, SFTP, Telnet, RDP and VNC sessions, the AI providers and cloud sync.
+  - --share=network
+  - --socket=wayland
+  # Not a fallback: the clipboard goes through arboard, and Flatpak's Wayland
+  # socket does not pass the data-control protocol it wants, so X11 is its only
+  # clipboard route. The window itself stays native Wayland.
+  - --socket=x11
+  # Serial-port sessions open /dev/ttyS*, /dev/ttyUSB* and friends, which only
+  # --device=all exposes. It also covers the GPU that wgpu renders through
+  # (libvulkan / libEGL from the runtime's Mesa).
+  - --device=all
+  # The window implements accessibility through AccessKit's AT-SPI adapter,
+  # which asks org.a11y.Bus where the accessibility bus lives. Without this name
+  # a screen reader never sees the application at all.
+  - --talk-name=org.a11y.Bus
+  # Saved passwords, passphrases and the vault key go to the system keyring
+  # (Secret Service).
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Notifications
+  # Tray icon. The window dlopen-s libayatana-appindicator (the prebuilt stack
+  # below), which registers its item with the watcher under its own unique
+  # connection name, so no org.kde.StatusNotifierItem-<pid>-<n> name has to be
+  # owned and the PID-2 collision between sandboxed apps does not arise.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --filesystem=xdg-run/tray-icon:create
+  # ssh-agent authentication and agent forwarding.
+  - --socket=ssh-auth
+  # ~/.ssh (keys, config import), the local side of SFTP transfers and the
+  # file browser, and the app's own data: hosts, settings, the vault and the
+  # single-instance lock all live in ~/.nyaterm, a path upstream
+  # hardcodes off $HOME, which Flatpak does not redirect.
+  - --filesystem=home
+  # Local terminal tabs: the wrapper points $SHELL at nyaterm-host-shell, which
+  # opens the user's login shell on the host through `flatpak-spawn --host`.
+  # This gives those tabs the same access as a terminal outside the sandbox.
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  # The window dlopen-s libayatana-appindicator3 for its tray icon, and the
+  # GNOME runtime does not ship it. Prebuilt ayatana tray stack (libdbusmenu,
+  # ayatana-ido, libayatana-indicator, libayatana-appindicator) from
+  # https://github.com/flatpark/prebuilt, built against org.gnome.Sdk//51; the
+  # tag's manifest records the exact sources, pins and patches.
+  - name: ayatana-stack
+    buildsystem: simple
+    build-commands:
+      - cp -a ./. /app/
+    sources:
+      - type: archive
+        only-arches:
+          - x86_64
+        url: https://github.com/flatpark/prebuilt/releases/download/ayatana-v3/ayatana-stack-ayatana-v3-gnome-51-x86_64.tar.xz
+        sha256: 21b02738793af6cd8d3355a1c5008697096b3000c9d2a4d7dfdbc43375a70056
+      - type: archive
+        only-arches:
+          - aarch64
+        url: https://github.com/flatpark/prebuilt/releases/download/ayatana-v3/ayatana-stack-ayatana-v3-gnome-51-aarch64.tar.xz
+        sha256: b9f9cb632dc4456dd3711059df72e4fc92b30f59b688e411ab7c6df9a2bb7c27
+
+  - name: nyaterm
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 nyaterm-wrapper /app/bin/nyaterm
+      - install -Dm755 nyaterm-host-shell /app/bin/nyaterm-host-shell
+      - install -Dm644 fonts.conf /app/etc/fonts/fonts.conf
+      - install -Dm644 com.kang.nyaterm.desktop /app/share/applications/com.kang.nyaterm.desktop
+      - install -Dm644 com.kang.nyaterm.metainfo.xml /app/share/metainfo/com.kang.nyaterm.metainfo.xml
+      - install -Dm644 com.kang.nyaterm.png /app/share/icons/hicolor/256x256/apps/com.kang.nyaterm.png
+    sources:
+      # The UI is translated into Chinese, Japanese and Korean, and terminals
+      # routinely show CJK text, which neither the GNOME runtime nor a typical
+      # non-CJK host can draw. The face comes from the noto-fonts stack in
+      # flatpark/prebuilt (docs/packagers/prebuilt.md), as extra-data so its 11
+      # MB stay out of FlatPark's repository; apply_extra unpacks it to
+      # /app/extra/noto-fonts and fonts.conf lists its share/fonts. It used to
+      # be pinned from jsDelivr, which went 404 (#1316).
+      #
+      # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
+      # that block from the resolver's sources and would drop anything else in
+      # it.
+      - type: extra-data
+        filename: noto-fonts.tar.xz
+        url: https://github.com/flatpark/prebuilt/releases/download/noto-fonts-v1/noto-fonts-noto-fonts-v1-noarch.tar.xz
+        sha256: b736ac362d9fad5c53f7d29aa3a868c53c610319a2aff5ece295449e53700259
+        size: 11197404
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: nyaterm.deb
+        only-arches:
+          - x86_64
+        url: https://github.com/nyakang/nyaterm/releases/download/v2.0.8/NyaTerm_2.0.8_linux_x64.deb
+        sha256: a8649b2ba134443c2fb6ac9c8f2f76c9ac9b0b1c1bcbae7b3f25d07e37493615
+        size: 67805914
+      - type: extra-data
+        filename: nyaterm.deb
+        only-arches:
+          - aarch64
+        url: https://github.com/nyakang/nyaterm/releases/download/v2.0.8/NyaTerm_2.0.8_linux_arm64.deb
+        sha256: 615491f13b963910500c08d988b75f5666dd6d05145a40e00d614231d82f5b99
+        size: 71777900
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: nyaterm-wrapper
+      - type: file
+        path: nyaterm-host-shell
+      - type: file
+        path: fonts.conf
+      - type: file
+        path: com.kang.nyaterm.desktop
+      - type: file
+        path: com.kang.nyaterm.metainfo.xml
+      - type: file
+        path: com.kang.nyaterm.png

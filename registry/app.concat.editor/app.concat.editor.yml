@@ -46,33 +46,38 @@ modules:
       - install -Dm644 app.concat.editor.png /app/share/icons/hicolor/512x512/apps/app.concat.editor.png
     sources:
       # Concat ships Chinese, Japanese and Korean interface translations, and
-      # captions and titles carry whatever language the footage is in, so a
-      # CJK face has to be reachable. org.freedesktop.Platform 26.08 ships
-      # none, and neither does a typical non-CJK host. The face is extra-data
-      # rather than a build module so its 19.5 MB stay out of FlatPark's
-      # repository for a file jsDelivr already serves; apply_extra stages it
-      # into /app/extra/fonts and concat-wrapper hands that directory to Slint
-      # through SLINT_FONT_PATH. Same tag-pinned URL and sha256 as
-      # registry/dev.navop.Navop and registry/io.github.yituorou.meatshell.
+      # captions and titles carry whatever language the footage is in, so a CJK
+      # face has to be reachable. org.freedesktop.Platform 26.08 ships none, and
+      # neither does a typical non-CJK host. The face comes from the noto-fonts
+      # stack in flatpark/prebuilt (docs/packagers/prebuilt.md), as extra-data
+      # so its 11 MB stay out of FlatPark's repository; apply_extra unpacks it
+      # to /app/extra/noto-fonts and concat-wrapper hands its share/fonts to
+      # Slint through SLINT_FONT_PATH. It used to be pinned from jsDelivr, which
+      # went 404 (#1316).
       #
       # Deliberately OUTSIDE the managed block below: update-pins.mjs rebuilds
       # that block from the resolver's sources and would drop anything else in
       # it.
       - type: extra-data
-        filename: NotoSansCJK-Regular.ttc
-        only-arches:
-          - x86_64
-        url: https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTC/NotoSansCJK-Regular.ttc
-        sha256: b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a
-        size: 19484784
+        filename: noto-fonts.tar.xz
+        url: https://github.com/flatpark/prebuilt/releases/download/noto-fonts-v1/noto-fonts-noto-fonts-v1-noarch.tar.xz
+        sha256: b736ac362d9fad5c53f7d29aa3a868c53c610319a2aff5ece295449e53700259
+        size: 11197404
       # BEGIN MANAGED EXTRA-DATA
       - type: extra-data
         filename: concat.deb
         only-arches:
           - x86_64
-        url: https://github.com/jub0t/Concat/releases/download/v0.2.5/Concat-0.2.5-linux-x86_64.deb
-        sha256: e93817f911d8e581645786c52ddbadde16abe715b3c3c7a2550ce042313d2828
-        size: 136173506
+        url: https://github.com/jub0t/Concat/releases/download/v0.2.13/Concat-0.2.13-linux-x86_64.deb
+        sha256: bf5204f000cdfa2a389a1c28a3c70ad4a1482b439280f36e5621ac319578dc87
+        size: 158541392
+      - type: extra-data
+        filename: concat.deb
+        only-arches:
+          - aarch64
+        url: https://github.com/jub0t/Concat/releases/download/v0.2.13/Concat-0.2.13-linux-aarch64.deb
+        sha256: 2bae3289d694a1e4dfab3d9f96b20d985d5a33b6b261ec0712dc55c8e8d8bee9
+        size: 146132364
       # END MANAGED EXTRA-DATA
       - type: file
         path: apply_extra.sh

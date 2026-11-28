@@ -1,0 +1,21 @@
+id: com.longbridge.Longbridge
+name: Longbridge
+summary: Trading platform
+website: https://longbridge.com/hk/zh-CN/download
+source_url: https://longbridge.com/hk/zh-CN/download
+build:
+  manifest: com.longbridge.Longbridge.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Finance
+  tags:
+    - Trading
+    - Markets
+    - Investing
+    - Stocks
+update:
+  command: ./resolve-update.sh
+policy:
+  proprietary: true
+  dangerous_permissions: []

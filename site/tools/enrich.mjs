@@ -9,37 +9,19 @@ import { join } from 'node:path';
 import YAML from 'yaml';
 import { XMLParser } from 'fast-xml-parser';
 import sharp from 'sharp';
+import { requiresOf, installWith } from '../src/lib/requires.mjs';
+import { starsRepoOf, fetchStars } from '../src/lib/stars.mjs';
+import { sectionFor } from '../../scripts/catalog-sections.mjs';
+import { SPAWN_ID, SPAWN_TALK_NAME } from '../../scripts/flatpark-spawn.mjs';
 
-// Curated top-level sections. Raw AppStream/descriptor categories map into this
-// fixed set so the catalog filter stays small no matter how many raw categories
-// appear; anything unmapped falls back to Utilities.
-// Values are stable slugs, not display text: the section is baked into the JSON
-// at build time but rendered in the reader's language, so it has to survive as
-// an identifier the site can look up (`section.<slug>`) rather than a string
-// that is already English. The client-side category filter matches on this slug
-// too, which keeps filtering locale-independent.
-const SECTION_MAP = {
-  // AppStream has no category for this one, so `AI` is a FlatPark-only value an
-  // app sets in its descriptor's catalog.category. It stays out of the metainfo,
-  // where the app keeps a real AppStream category (Development, Office, …) so
-  // desktop menus still place it sensibly.
-  AI: 'ai',
-  Development: 'development', IDE: 'development', Building: 'development',
-  Finance: 'finance',
-  // The fdo Network main category, under the name every desktop menu gives it:
-  // browsers, downloaders, file transfer, chat and remote access all live here.
-  Network: 'internet', Communication: 'internet', Chat: 'internet',
-  InstantMessaging: 'internet', Email: 'internet', News: 'internet',
-  RemoteAccess: 'internet', FileTransfer: 'internet', P2P: 'internet',
-  Science: 'science', Education: 'science', Geoscience: 'science',
-  Office: 'office', Spreadsheet: 'office',
-  Graphics: 'graphics', Photography: 'graphics',
-  AudioVideo: 'audio-video', Audio: 'audio-video', Video: 'audio-video', Player: 'audio-video',
-  Game: 'games',
-  System: 'system', Settings: 'system', Security: 'system',
-  Utility: 'utilities', Utilities: 'utilities',
-};
-const sectionFor = (cat) => SECTION_MAP[cat] || 'utilities';
+
+// How a terminal launcher is used is a property of how the app runs, not what
+// it is for, so it is a flag beside the section rather than a section of its
+// own: FFmpeg stays in Audio & Video and still says it has no window.
+// catalog.interface in flatpark.yml says it outright: `gui` (the default),
+// `cli` for a command-line tool, `web` for a local server used through its
+// browser page (llama.cpp). The .desktop's Terminal=true is the same for the
+// last two, so the descriptor audit makes every terminal launcher pick one.
 
 // Last time we touched this app's package, for the "Recently updated" sort.
 // Git commit time of the registry dir is universal (no upstream fetch); fall
@@ -79,7 +61,7 @@ function gitAdded(srcDir) {
 // A shallow checkout reports every app as added by the single grafted commit,
 // so gitAdded() above hands back one identical timestamp for the whole catalog
 // and "Recently added" silently degenerates into registry scan order (i.e.
-// alphabetical). That shipped once from delist-prune's default-depth checkout.
+// alphabetical). That shipped once from delist-prune's (now cleanup.yml) default-depth checkout.
 // Any workflow that builds the site needs fetch-depth: 0; refuse to build
 // rather than publish a wrong order. FLATPARK_ALLOW_SHALLOW=1 opts out for a
 // local shallow clone that does not care about listing dates.
@@ -123,6 +105,104 @@ const editorPicks = (() => {
     return [];
   }
 })();
+
+// Install counts from the daily rollup (scripts/rollup-install-stats.mjs), an
+// http(s) URL or a local path. Best-effort like everything here: no stats just
+// means no install row and no "Popular" order, never a failed build.
+const installStats = await (async () => {
+  const src = process.env.FLATPARK_STATS_URL || '';
+  if (!src) return null;
+  try {
+    if (!/^https?:/.test(src)) return JSON.parse(readFileSync(src, 'utf8'));
+    const res = await fetch(src, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn(`[enrich] install stats unavailable (${src}): ${e.message}`);
+    return null;
+  }
+})();
+
+// Upstream GitHub stars (src/lib/stars.mjs), the other Popular order. Looked
+// up once for the whole catalog before the per-app pass, since one aliased
+// GraphQL query covers every repository. Needs a token (GH_TOKEN or
+// GITHUB_TOKEN; the publish workflow passes github.token) because GraphQL
+// takes no anonymous calls. Best-effort like the install counts: no token or a
+// failed lookup means no star row and no Stars order, never a failed build.
+// FLATPARK_STARS_FILE, a local {"owner/name": count} JSON, stands in for the
+// API (tests, offline builds) and wins over a token.
+const starsByApp = await (async () => {
+  const starsFile = process.env.FLATPARK_STARS_FILE || '';
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  if ((!starsFile && !token) || !existsSync(appsDir)) return null;
+  const wanted = {};
+  for (const f of readdirSync(appsDir).filter((x) => x.endsWith('.json'))) {
+    try {
+      const base = JSON.parse(readFileSync(join(appsDir, f), 'utf8'));
+      const fyPath = join(base._srcDir || '', 'flatpark.yml');
+      const fy = base._srcDir && existsSync(fyPath) ? YAML.parse(readFileSync(fyPath, 'utf8')) : null;
+      const repo = starsRepoOf(fy, base.sourceUrl);
+      if (repo) wanted[base.id] = repo;
+    } catch {
+      // the per-app pass reports a broken file; here it just has no stars
+    }
+  }
+  try {
+    const counts = starsFile
+      ? Object.fromEntries(
+          Object.entries(JSON.parse(readFileSync(starsFile, 'utf8'))).map(([repo, count]) => [
+            repo.toLowerCase(),
+            { repo, count: Number(count) },
+          ]),
+        )
+      : await fetchStars(Object.values(wanted), token);
+    const out = {};
+    for (const [id, repo] of Object.entries(wanted)) {
+      const hit = counts[repo.toLowerCase()];
+      if (hit) out[id] = hit;
+      else console.warn(`[enrich] ${id}: no GitHub repository ${repo} for stars`);
+    }
+    return out;
+  } catch (e) {
+    console.warn(`[enrich] upstream stars unavailable: ${e.message}`);
+    return null;
+  }
+})();
+
+// Shared extensions (build.shared) and the apps that mount them. A shared
+// extension has no parent: any app that declares its extension point under
+// add-extensions gets it. Its page lists those apps, and theirs link back.
+const isSharedDescriptor = (fy) => fy?.build?.shared === true || fy?.build?.shared === 'true';
+const sharedLinks = (() => {
+  const users = new Map(); // shared extension id -> [{ id, name }]
+  const uses = new Map(); // app id -> [{ id, name }]
+  if (!existsSync(appsDir)) return { users, uses };
+  const shared = new Map();
+  const points = [];
+  for (const f of readdirSync(appsDir).filter((x) => x.endsWith('.json'))) {
+    try {
+      const base = JSON.parse(readFileSync(join(appsDir, f), 'utf8'));
+      if (isSharedDescriptor(readDescriptor(base._srcDir))) shared.set(base.id, base.name);
+      if (base._manifest && existsSync(base._manifest)) {
+        const declared = parseManifest(base._manifest)?.['add-extensions'];
+        if (declared && typeof declared === 'object') points.push([base.id, base.name, Object.keys(declared)]);
+      }
+    } catch {
+      // the per-app pass reports a broken file
+    }
+  }
+  for (const [id, name, names] of points) {
+    for (const ext of names) {
+      if (!shared.has(ext) || ext === id) continue;
+      users.set(ext, [...(users.get(ext) ?? []), { id, name }]);
+      uses.set(id, [...(uses.get(id) ?? []), { id: ext, name: shared.get(ext) }]);
+    }
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  for (const list of users.values()) list.sort(byName);
+  return { users, uses };
+})();
+
 // Ids seen during enrichment, to flag stale picks (removed/renamed apps).
 const enrichedIds = new Set();
 
@@ -136,22 +216,51 @@ const keptShots = new Set();
 // different screenshot the name changes and we re-pull automatically — a bare
 // `${id}-${i}` key silently served the stale shot forever. On any fetch/decode
 // failure we keep the original remote URL (best-effort, never fatal).
-async function cacheScreenshots(id, shots) {
+//
+// A screenshot the packager took themselves is committed next to the metainfo
+// and linked on main (registryShotPrefix). Read it from the checkout instead:
+// the URL 404s until the PR merges, and the file is right here anyway. Its
+// bytes go into the cache name, so a replaced file under the same name is
+// re-encoded. `registryFile` tells check-links to look for the file, not fetch.
+const registryShotPrefix = 'https://raw.githubusercontent.com/flatpark/flatpark/main/registry/';
+function registryShot(id, srcDir, url) {
+  if (!srcDir || !url.startsWith(`${registryShotPrefix}${id}/`)) return null;
+  const rel = url.slice(registryShotPrefix.length);
+  const file = join(srcDir, rel.slice(id.length + 1));
+  return { rel, bytes: existsSync(file) ? readFileSync(file) : null };
+}
+
+async function cacheScreenshots(id, shots, srcDir) {
   if (!shots.length) return shots;
   mkdirSync(shotsDir, { recursive: true });
   const out = [];
   for (let i = 0; i < shots.length; i += 1) {
-    const s = shots[i];
-    const h = createHash('sha1').update(s.url).digest('hex').slice(0, 10);
+    let s = shots[i];
+    const reg = registryShot(id, srcDir, s.url);
+    if (reg) {
+      s = { ...s, registryFile: `registry/${reg.rel}`, ...(reg.bytes ? {} : { missing: true }) };
+      if (!reg.bytes) {
+        console.warn(`[enrich] ${id}: screenshot ${i}: ${s.registryFile} is not in the registry`);
+        out.push(s);
+        continue;
+      }
+    }
+    const hash = createHash('sha1').update(s.url);
+    if (reg) hash.update(reg.bytes);
+    const h = hash.digest('hex').slice(0, 10);
     const name = `${id}-${i}-${h}.webp`;
     const dest = join(shotsDir, name);
     const localUrl = `/screenshots/${name}`;
     keptShots.add(name);
     if (existsSync(dest)) { out.push({ ...s, url: localUrl }); continue; }
     try {
-      const res = await fetch(s.url, { signal: AbortSignal.timeout(20000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await sharp(Buffer.from(await res.arrayBuffer()))
+      let bytes = reg?.bytes;
+      if (!bytes) {
+        const res = await fetch(s.url, { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        bytes = Buffer.from(await res.arrayBuffer());
+      }
+      await sharp(bytes)
         .resize({ width: 1280, withoutEnlargement: true })
         .webp({ quality: 78 })
         .toFile(dest);
@@ -264,7 +373,7 @@ function blocksFrom(descChildren) {
       if (runs.length) blocks.push({ type: 'p', runs });
     } else if ('ul' in node || 'ol' in node) {
       const items = toArray(node.ul || node.ol)
-        .filter((c) => c && 'li' in c)
+        .filter((c) => c && 'li' in c && isSourceLang(c)) // gettext puts translated <li>s inside the source <ul>
         .map((c) => orderedRuns(c.li))
         .filter((runs) => runs.length);
       if (items.length) blocks.push({ type: 'list', items });
@@ -318,6 +427,34 @@ function releaseExtras(rawXml) {
   return out;
 }
 
+function readDescriptor(dir) {
+  const path = join(dir || '', 'flatpark.yml');
+  return existsSync(path) ? YAML.parse(readFileSync(path, 'utf8')) || {} : null;
+}
+
+// The remote FlatPark's install commands name, from the catalog gen-apps-json.sh
+// wrote next to the app files.
+let catalogRemote;
+function remoteName() {
+  catalogRemote ??= JSON.parse(readFileSync(join(dataDir, 'catalog.json'), 'utf8')).repo?.remoteName;
+  if (!catalogRemote) {
+    console.error(`[enrich] ${join(dataDir, 'catalog.json')} names no remote`);
+    process.exit(1);
+  }
+  return catalogRemote;
+}
+
+function parentOf(srcDir, id) {
+  const dir = join(srcDir, '..', id);
+  const fy = readDescriptor(dir);
+  const manifest = fy?.build?.manifest ? join(dir, fy.build.manifest) : '';
+  if (!manifest || !existsSync(manifest)) {
+    console.error(`[enrich] the parent ${id} of ${srcDir} is not in the registry`);
+    process.exit(1);
+  }
+  return { name: fy.name || id, manifest: parseManifest(manifest) };
+}
+
 function parseManifest(path) {
   const raw = readFileSync(path, 'utf8');
   try {
@@ -345,10 +482,138 @@ function parseLicense(raw) {
   return { label: cleaned.replace(/LicenseRef-proprietary\b/g, 'Proprietary'), url };
 }
 
+// Packaging transparency: what the package does around (or to) the vendor's
+// build, shown as a level badge and a per-item list. Each kind has a fixed
+// level; `support-files` is derived from the manifest, the rest are declared
+// under `packaging:` in flatpark.yml (scripts/audit-descriptor.mjs fails a
+// descriptor whose scripts show a kind it does not declare).
+export const PACKAGING_KINDS = {
+  'support-files': 'adapted',
+  'seeded-config': 'adapted',
+  'injected-code': 'modified',
+  'file-change': 'modified',
+  'runtime-install': 'modified',
+  'host-command': 'reduced',
+  'sandbox-off': 'reduced',
+};
+const PACKAGING_LEVELS = ['unmodified', 'adapted', 'modified', 'reduced'];
+
+// The extra-data/archive sources of every module, flattened.
+function manifestSources(m) {
+  const out = [];
+  const walk = (mods) => {
+    for (const mod of toArray(mods)) {
+      if (!mod || typeof mod !== 'object') continue;
+      for (const src of toArray(mod.sources)) if (src && typeof src === 'object' && src.url) out.push(src);
+      walk(mod.modules);
+    }
+  };
+  walk(m.modules);
+  return out;
+}
+
+// Where a download comes from, coarse enough that one project's per-arch
+// builds compare equal: host, plus owner/repo on github.com.
+function originKey(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'github.com') return `github.com/${u.pathname.split('/').slice(1, 3).join('/')}`;
+    return u.hostname;
+  } catch {
+    return url;
+  }
+}
+
+// Components the package adds next to the vendor's build: FlatPark prebuilt
+// stacks (appimage-tools only unpacks at install time, so it is not one) and
+// extra-data from a different origin than the main payload.
+// The main payload is whatever the resolver manages (between the BEGIN/END
+// MANAGED EXTRA-DATA markers in the manifest text); without markers, the first
+// non-prebuilt extra-data source.
+export function supportFiles(m, rawText = '') {
+  const names = new Set();
+  const srcs = manifestSources(m);
+  const prebuilt = /github\.com\/flatpark\/prebuilt\/releases\/download\/([A-Za-z0-9._-]+?)-v\d+\//;
+  const managed = /# BEGIN MANAGED EXTRA-DATA([\s\S]*?)# END MANAGED EXTRA-DATA/.exec(rawText);
+  const mainOrigins = new Set(
+    managed
+      ? [...managed[1].matchAll(/url:\s*(\S+)/g)].map((x) => originKey(x[1].replace(/^["']|["']$/g, '')))
+      : [srcs.find((s) => s.type === 'extra-data' && !prebuilt.test(s.url))?.url].filter(Boolean).map(originKey),
+  );
+  for (const s of srcs) {
+    const pb = prebuilt.exec(s.url);
+    if (pb) {
+      if (pb[1] !== 'appimage-tools') names.add(pb[1]);
+      continue;
+    }
+    if (s.type === 'extra-data' && mainOrigins.size && !mainOrigins.has(originKey(s.url))) {
+      names.add(String(s.filename || s.url.split('/').pop()).replace(/(\.tar)?\.(gz|xz|zst|bz2|zip|deb|ttc|ttf|tgz|txz)$/, '').replace(/[-_](x86_64|aarch64|amd64|arm64)$/, ''));
+    }
+  }
+  return [...names].sort();
+}
+
+// Declared entries + the derived support-files entry -> { level, items }.
+// `detail` may be a string (English) or a { en, zh-Hans } map.
+export function packagingOf(declared, derivedSupport) {
+  const items = [];
+  for (const e of toArray(declared)) {
+    if (!e || typeof e !== 'object' || !PACKAGING_KINDS[e.kind]) {
+      console.warn(`[enrich] unknown packaging entry: ${JSON.stringify(e)}`);
+      continue;
+    }
+    const detail = typeof e.detail === 'object' && e.detail ? e.detail : { en: e.detail || '' };
+    items.push({ kind: e.kind, level: PACKAGING_KINDS[e.kind], detail });
+  }
+  if (derivedSupport.length && !items.some((i) => i.kind === 'support-files')) {
+    items.push({ kind: 'support-files', level: 'adapted', detail: null, value: derivedSupport.join(', ') });
+  }
+  const rank = (l) => PACKAGING_LEVELS.indexOf(l);
+  items.sort((a, b) => rank(b.level) - rank(a.level));
+  const level = items.reduce((acc, i) => (rank(i.level) > rank(acc) ? i.level : acc), 'unmodified');
+  return { level, items };
+}
+
 // Map a single Flatpak finish-arg to a human label + risk level + group.
 const NON_PERMISSION_FLAGS = new Set([
   'require-version', 'env', 'extra-languages', 'cwd', 'metadata', 'sdk', 'command', 'runtime', 'version',
 ]);
+
+// Bus names that serve the host keyring. GNOME Keyring hands any client every
+// item in an unlocked collection, other apps' included; KWallet's ACLs go by
+// application name, which a sandboxed app picks itself. The Secret portal
+// (org.freedesktop.portal.Secret) is the per-app alternative and needs no grant.
+const SECRET_SERVICE_NAMES = new Set([
+  'org.freedesktop.secrets', 'org.gnome.keyring',
+  'org.kde.kwalletd', 'org.kde.kwalletd5', 'org.kde.kwalletd6',
+]);
+
+// Home-relative places that hold private keys, saved passwords or login
+// sessions. A grant on one of them, or on anything inside it, can read them;
+// :ro doesn't help, since reading is the risk. ~/.var/app is other Flatpak
+// apps' data (`home` doesn't include it), browser profiles among it.
+const SECRET_PATHS = [
+  '.ssh', '.gnupg', '.password-store', '.pki', '.netrc', '.git-credentials',
+  '.aws', '.kube', '.docker', '.config/gh',
+  '.mozilla', '.config/mozilla', '.thunderbird', '.config/thunderbird', '.local/share/pki',
+  '.config/google-chrome', '.config/chromium',
+  '.config/BraveSoftware', '.config/microsoft-edge', '.config/vivaldi', '.config/opera',
+  '.local/share/keyrings', '.local/share/kwalletd',
+  '.var/app',
+];
+
+function homeRelative(path) {
+  const p = path.replace(/\/+$/, '');
+  for (const [prefix, to] of [['~/', ''], ['home/', ''], ['xdg-config/', '.config/'], ['xdg-data/', '.local/share/']]) {
+    if (p.startsWith(prefix)) return to + p.slice(prefix.length);
+  }
+  return null;
+}
+
+function isSecretPath(path) {
+  const rel = homeRelative(path);
+  return rel !== null && SECRET_PATHS.some((s) => rel === s || rel.startsWith(s + '/'));
+}
 
 function describePermission(arg) {
   const eq = arg.indexOf('=');
@@ -380,9 +645,10 @@ function describePermission(arg) {
         pipewire: ['socket.pipewire', 'Audio/video (PipeWire)', 'info', 'Devices'],
         'session-bus': ['socket.session_bus', 'Full session bus access', 'warning', 'Services'],
         'system-bus': ['socket.system_bus', 'Full system bus access', 'warning', 'Services'],
-        'ssh-auth': ['socket.ssh_auth', 'SSH agent', 'info', 'System'],
+        // The agents don't hand out the keys, but sign and log in with them.
+        'ssh-auth': ['socket.ssh_auth', 'SSH agent', 'caution', 'System', 'Can log in with the keys loaded in your SSH agent'],
         cups: ['socket.cups', 'Printing (CUPS)', 'info', 'System'],
-        'gpg-agent': ['socket.gpg_agent', 'GPG agent', 'info', 'System'],
+        'gpg-agent': ['socket.gpg_agent', 'GPG agent', 'caution', 'System', 'Can sign and decrypt with your GPG keys through the agent'],
       };
       const m = map[value];
       return m ? base(m[0], m[1], m[2], m[3], m[4]) : base('socket.other', `Socket: ${value}`, 'info', 'System');
@@ -407,11 +673,24 @@ function describePermission(arg) {
         'host-os': ['filesystem.host_os', 'Host OS files', 'warning', 'Filesystem'],
         'host-etc': ['filesystem.host_etc', 'Host /etc', 'warning', 'Filesystem'],
         home: ['filesystem.home', 'Home folder', 'caution', 'Filesystem'],
+        // A grant on the path, but what it opens is the PipeWire daemon: every
+        // camera and other apps' video streams, with no portal asking first.
+        'xdg-run/pipewire-0': ['filesystem.pipewire', 'Direct PipeWire access', 'warning', 'Devices',
+          'Can open any camera and other apps\' video streams, including screen shares, without asking'],
       };
       const m = map[v];
       // The read-only qualifier is a flag rather than part of the label: the
       // site wraps the translated label with it, since word order differs.
+      // :ro doesn't restrict a socket, so the PipeWire grant takes no qualifier.
+      if (m && m[0] === 'filesystem.pipewire') return base(m[0], m[1], m[2], m[3], m[4]);
       if (m) return { ...base(m[0], m[1] + (readOnly ? ' (read-only)' : ''), m[2], m[3]), readOnly };
+      // The gpg-agent's socket directory is the same grant as --socket=gpg-agent.
+      if (v === 'xdg-run/gnupg') {
+        return base('socket.gpg_agent', 'GPG agent', 'caution', 'System', 'Can sign and decrypt with your GPG keys through the agent');
+      }
+      if (isSecretPath(v)) {
+        return base('filesystem.secrets', `Files: ${value}`, 'warning', 'Filesystem', 'Holds private keys, saved passwords or login sessions');
+      }
       return base('filesystem.other', `Files: ${value}`, 'caution', 'Filesystem');
     }
     case 'talk-name':
@@ -421,6 +700,10 @@ function describePermission(arg) {
       // gets.
       if (value === 'org.freedesktop.Flatpak' || value.startsWith('org.freedesktop.Flatpak.')) {
         return base('talk_name.flatpak', `Talk to ${value}`, 'caution', 'Services', 'Can run commands on the host via flatpak-spawn');
+      }
+      if (SECRET_SERVICE_NAMES.has(value)) {
+        return base('talk_name.secrets', `Talk to ${value}`, 'warning', 'Services',
+          'Can read the host keyring; most keyrings also expose other apps\' saved passwords while unlocked');
       }
       return base('talk_name', `Talk to ${value}`, 'info', 'Services');
     case 'system-talk-name':
@@ -455,17 +738,55 @@ async function enrichOne(file) {
   out.runtimeVersion = '';
   out.command = '';
   out.proprietary = false;
+  out.cli = false;
+  out.webUi = false;
   out.maintainer = null;
   out.permissions = [];
+  let supportDerived = [];
+  let packagingDeclared = [];
 
   // 1. Flatpak manifest -> permissions, runtime, proprietary tag
   try {
     if (base._manifest && existsSync(base._manifest)) {
       const m = parseManifest(base._manifest);
-      out.runtime = m.runtime || '';
-      out.runtimeVersion = m['runtime-version'] ? String(m['runtime-version']) : '';
+      // An extension has no permissions or runtime of its own: it runs inside
+      // its parent with all of the parent's. A page that can't say so must
+      // not say "fully sandboxed", so a missing parent stops the build.
+      // A shared extension (build.shared) has no parent at all: it runs in
+      // each app that declares it, on that app's runtime and with that app's
+      // permissions, so its page lists none of its own and names those apps.
+      // Its manifest's runtime is the build stand-in, never shown.
+      const fy = readDescriptor(srcDir);
+      const shared = isSharedDescriptor(fy);
+      const parent = fy?.build?.extends && !shared ? parentOf(srcDir, fy.build.extends) : null;
+      const host = parent ? parent.manifest : m;
+      if (parent) out.parent = { id: fy.build.extends, name: parent.name };
+      if (shared) {
+        out.shared = true;
+        out.consumers = sharedLinks.users.get(base.id) ?? [];
+      } else {
+        out.runtime = host.runtime || '';
+        out.runtimeVersion = host['runtime-version'] ? String(host['runtime-version']) : '';
+        out.permissions = toArray(host['finish-args']).map(describePermission).filter(Boolean);
+      }
       out.command = m.command || '';
-      out.permissions = toArray(m['finish-args']).map(describePermission).filter(Boolean);
+      // The shared extensions this app mounts. With flatpark-spawn the
+      // Flatpak talk-name is not an occasional flatpak-spawn: every command
+      // its tools run can go to the host, and the page says so.
+      const uses = sharedLinks.uses.get(base.id) ?? [];
+      if (uses.length) out.uses = uses;
+      // hostCommands: the page says the app (or, for flatpark-spawn itself,
+      // an app using it) can run commands on the host through it.
+      if (base.id === SPAWN_ID) out.hostCommands = true;
+      if (uses.some((u) => u.id === SPAWN_ID)) {
+        out.hostCommands = true;
+        out.permissions = out.permissions.map((p) =>
+          `--${p.flag}=${p.value}` === SPAWN_TALK_NAME
+            ? { ...p, key: 'talk_name.flatpark_spawn', level: 'warning',
+                detail: 'Runs the commands its tools call on the host, as you, through flatpark-spawn' }
+            : p);
+      }
+      supportDerived = supportFiles(m, readFileSync(base._manifest, 'utf8'));
       if (toArray(m.tags).includes('proprietary')) out.proprietary = true;
     }
   } catch (e) {
@@ -529,18 +850,31 @@ async function enrichOne(file) {
       if (fy.policy?.proprietary) out.proprietary = true;
       if (fy.build?.mode) out.buildMode = fy.build.mode;
       out.upstreamApproved = !!fy.catalog?.upstream_approved; // upstream developer consented to this listing
+      out.cli = fy.catalog?.interface === 'cli';
+      out.webUi = fy.catalog?.interface === 'web';
+      packagingDeclared = fy.packaging;
+      out.requires = requiresOf(fy);
     }
   } catch (e) {
     console.warn(`[enrich] ${base.id}: flatpark.yml parse failed: ${e.message}`);
   }
 
-  out.screenshots = await cacheScreenshots(out.id, out.screenshots);
+  out.packaging = packagingOf(packagingDeclared, supportDerived);
+  out.requires = out.requires || [];
+  if (out.parent && !out.requires.some((r) => r.ref === out.parent.id)) {
+    out.requires.push({ remote: remoteName(), ref: out.parent.id, name: out.parent.name });
+  }
+  out.installCmd = installWith(base.installCmd, [out]);
+
+  out.screenshots = await cacheScreenshots(out.id, out.screenshots, srcDir);
 
   if (!out.website) out.website = out.urls.homepage || '';
   if (out.license?.label === 'Proprietary') out.proprietary = true;
 
-  // Catalog facets for sort + filter (homepage / browse page).
-  out.section = sectionFor(out.category);
+  // Catalog facets for sort + filter (homepage / browse page). An extension
+  // is not an app of its own: it files under the `extensions` section, which
+  // the lists leave out unless it is asked for, and its parent's page lists it.
+  out.section = out.parent || out.shared ? 'extensions' : sectionFor(out.category);
   out.upstreamApproved = out.upstreamApproved || false;
   // Editor's pick and the shield are independent axes: a pick needs no
   // approval, an approval earns no pick.
@@ -552,6 +886,26 @@ async function enrichOne(file) {
   out.updated = out.releases?.[0]?.date || gitUpdated(srcDir) || '';
   // Listing date — when we added the app, never an upstream date.
   out.added = gitAdded(srcDir);
+  // Only new installs in the last 30 days are shown, and Popular sorts by
+  // them: updates count the same people again every release (rewarding apps
+  // that ship daily), and all-time figures only reach back to when counting
+  // started (2026-10-04), which shortchanges apps listed before it. totals.json
+  // keeps downloads/active for maintainers.
+  // An app with no row yet (listed after the last rollup) counts as zero —
+  // but only once anything has been counted at all (`since` set). Before the
+  // first counted day, totals.json exists but is empty, and a "0" on every
+  // page would read as "nobody uses this", not "not measured yet".
+  if (installStats?.since && installStats.apps) {
+    const s = installStats.apps[out.id];
+    out.stats = {
+      installs30: s?.installs30 ?? 0,
+      since: installStats.since,
+    };
+  }
+  // No row means "not measured" (no repository, or the lookup did not run),
+  // which the Stars order sorts after every counted app rather than as 0.
+  const stars = starsByApp?.[out.id];
+  if (stars) out.upstreamStars = stars;
 
   writeFileSync(path, JSON.stringify(out, null, 2) + '\n');
   return out.id;

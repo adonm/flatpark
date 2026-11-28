@@ -1,0 +1,150 @@
+# Weekly cleanup, two independent jobs:
+#
+# cloudflare — destructive: reclaim R2 space. Delists apps whose
+#   registry/<id>/ is gone, drops extension refs their app no longer declares,
+#   prunes every ref to its current commit, re-signs, republishes, then deletes
+#   ONLY the pruned objects from R2 (prune-diff targeted delete — never a blind
+#   mirror), and redeploys the Pages site. Kept separate from the additive
+#   publish; runs weekly because publish never deletes, so superseded versions
+#   accumulate in R2 until pruned.
+# github-actions — deletes finished workflow runs with their logs and
+#   artifacts, except the ones still in play (scripts/prune-actions-runs.sh).
+#
+# Run by hand, `only` picks one of them; the schedule runs both.
+name: cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Which cleanup to run
+        type: choice
+        options: [all, cloudflare, github-actions]
+        default: all
+  schedule:
+    - cron: "0 2 * * 6"   # Saturday 02:00 UTC (10:00 Beijing)
+
+concurrency:
+  group: publish   # share the publish lock so prune never races a publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare:
+    if: inputs.only != 'github-actions'
+    # Signing keys and Cloudflare/R2 credentials live in the "production"
+    # environment, which only main can use: a branch pushed by anyone with
+    # write access cannot read them.
+    environment: production
+    # 24.04 镜像默认的 apt 源 azure.archive.ubuntu.com 挂了:apt-get update 全线
+    # Ign,退回 archive.ubuntu.com 后拉索引时停住,publish #211 就这样零输出吊了
+    # 68 分钟。26.04 不走那个源。它目前是 public preview,只当作绕开手段,
+    # 那边的源恢复之后换回 ubuntu-latest。
+    runs-on: ubuntu-26.04
+    # rclone, flatpak, ostree and node come with the image. OUT_DIR, REPO_DIR
+    # and GNUPGHOME_DIR are set in a step: in a container job
+    # ${{ github.workspace }} is the host's path, not the one mounted here.
+    container:
+      image: ghcr.io/flatpark/ci:build
+      options: --privileged
+    # A container job's run steps default to sh; these scripts are bash.
+    defaults:
+      run:
+        shell: bash
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    steps:
+      # Full history, not the default depth-1: this job rebuilds and redeploys
+      # the site, and the "Recently added" order is read out of git (the commit
+      # that first added registry/<id>/). A shallow clone dates every app to the
+      # single grafted commit, so the homepage silently falls back to scan order.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Job paths
+        run: |
+          {
+            echo "OUT_DIR=$GITHUB_WORKSPACE/out"
+            echo "REPO_DIR=$GITHUB_WORKSPACE/out/repo"
+            echo "GNUPGHOME_DIR=$GITHUB_WORKSPACE/.gnupg-flatpark"
+          } >> "$GITHUB_ENV"
+      - name: Import signing subkey
+        # Every key here signs everything (scripts/lib/common.sh: signing_keys).
+        # During a key rotation both are set; deleting the outgoing one from the
+        # production environment ends the overlap
+        # (docs/reference/signing-key-rotation.md).
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          FLATPAK_GPG_KEY_2026_11: ${{ secrets.FLATPAK_GPG_KEY_2026_11 }}
+        run: |
+          mkdir -p "$GNUPGHOME_DIR"; chmod 700 "$GNUPGHOME_DIR"
+          for key in "$FLATPAK_GPG_PRIVATE_KEY" "$FLATPAK_GPG_KEY_2026_11"; do
+            [ -n "$key" ] || continue
+            printf '%s\n' "$key" | GNUPGHOME="$GNUPGHOME_DIR" gpg --batch --import
+          done
+      # Start from publish's repo cache so the pull only reconciles a week of
+      # changes instead of re-downloading every object (a cold pull took 39
+      # minutes on 2026-10-17). Restore-only: publish saves the next one, and a
+      # second multi-GB copy per week would just crowd its cache out. `path`
+      # and the key prefix must match publish.yml's "Restore repo cache" step
+      # exactly — the path string is part of the cache version, so
+      # $REPO_DIR's absolute spelling would never hit.
+      - name: Restore repo cache
+        uses: actions/cache/restore@v6
+        with:
+          path: out/repo
+          key: flatpak-repo-${{ github.sha }}
+          restore-keys: |
+            flatpak-repo-
+      - name: Pull current repo from R2
+        run: ./scripts/pull-r2.sh
+      # First: refs whose commit is already gone (a de-list from an earlier run
+      # whose ref file lingered in R2). They would break the prune below, and
+      # the sweep truncates the reclaim-refs list the prune then appends to.
+      - name: Drop dangling refs
+        run: RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt" ./scripts/drop-dangling-refs.sh
+      - name: Delist + prune to current commit
+        run: |
+          export RECLAIM_LIST="$OUT_DIR/reclaim-objects.txt"
+          export RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt"
+          ./scripts/prune-and-reclaim.sh
+      - name: Re-sign + rebuild discovery and site
+        run: |
+          ./scripts/publish-repo.sh
+          while IFS= read -r id; do ./scripts/gen-discovery.sh "$id"; done < <(./scripts/scan-registry.sh --ids)
+          ./scripts/gen-site.sh $(./scripts/scan-registry.sh --ids | tr '\n' ' ')
+      - name: Sync new summary first, then delete stale refs and orphaned objects
+        run: |
+          RECLAIM_LIST="$OUT_DIR/reclaim-objects.txt" \
+          RECLAIM_REFS="$OUT_DIR/reclaim-refs.txt" \
+          PRUNE_SUMMARIES=1 ./scripts/sync-r2.sh
+      - name: Redeploy site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx -y wrangler@3 pages deploy "$OUT_DIR/site" --project-name="$CF_PAGES_PROJECT" --branch=main
+
+  # Its own job: it needs no secrets, so it stays out of the production
+  # environment, and a failed R2 prune doesn't leave the run history piling up.
+  github-actions:
+    if: inputs.only != 'cloudflare'
+    runs-on: ubuntu-26.04
+    permissions:
+      actions: write          # delete workflow runs
+      pull-requests: read     # open PR heads, whose pr-checks runs are kept
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Delete finished workflow runs
+        run: ./scripts/prune-actions-runs.sh

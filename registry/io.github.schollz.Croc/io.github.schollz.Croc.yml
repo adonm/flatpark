@@ -1,0 +1,55 @@
+id: io.github.schollz.Croc
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+command: croc
+separate-locales: false
+build-options:
+  no-debuginfo: true
+finish-args:
+  # Connect to peers and relays.
+  - --share=network
+  # Send files by path and receive them into the working directory.
+  - --filesystem=home
+modules:
+  - name: croc
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 apply_extra.sh /app/bin/apply_extra
+      - install -Dm755 croc-wrapper /app/bin/croc
+      - install -Dm755 croc-update-wrapper /app/bin/croc-update
+      - install -Dm755 croc-desktop /app/bin/croc-desktop
+      - install -Dm644 io.github.schollz.Croc.desktop /app/share/applications/io.github.schollz.Croc.desktop
+      - install -Dm644 io.github.schollz.Croc.metainfo.xml /app/share/metainfo/io.github.schollz.Croc.metainfo.xml
+      - install -Dm644 io.github.schollz.Croc.svg /app/share/icons/hicolor/scalable/apps/io.github.schollz.Croc.svg
+    sources:
+      # BEGIN MANAGED EXTRA-DATA
+      - type: extra-data
+        filename: croc.tar.gz
+        only-arches:
+          - x86_64
+        url: https://github.com/schollz/croc/releases/download/v11.6.7/croc_v11.6.7_Linux-64bit.tar.gz
+        sha256: 575a7b4fe53e7b8f2143e30c0f4971b7eb4573af0f921bb5e2db1e703a3bc180
+        size: 12745028
+      - type: extra-data
+        filename: croc.tar.gz
+        only-arches:
+          - aarch64
+        url: https://github.com/schollz/croc/releases/download/v11.6.7/croc_v11.6.7_Linux-ARM64.tar.gz
+        sha256: 5af04506c30f525eaf0979a5ab2c84ec5289531d2a95edcb2ae804f7be7eea0d
+        size: 11496646
+      # END MANAGED EXTRA-DATA
+      - type: file
+        path: apply_extra.sh
+      - type: file
+        path: croc-wrapper
+      - type: file
+        path: croc-update-wrapper
+      - type: file
+        path: croc-desktop
+      - type: file
+        path: io.github.schollz.Croc.desktop
+      - type: file
+        path: io.github.schollz.Croc.metainfo.xml
+      - type: file
+        path: io.github.schollz.Croc.svg

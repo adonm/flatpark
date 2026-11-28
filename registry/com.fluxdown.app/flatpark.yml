@@ -1,0 +1,26 @@
+id: com.fluxdown.app
+name: FluxDown
+summary: Multi-protocol download manager, a free IDM alternative
+website: https://fluxdown.com
+source_url: https://github.com/zerx-lab/FluxDown
+build:
+  manifest: com.fluxdown.app.yml
+  branch: stable
+  mode: extra-data
+catalog:
+  category: Network
+  tags:
+    - Download
+    - FileTransfer
+    - BitTorrent
+    - IDM
+    - GPUI
+update:
+  command: ./resolve-update.sh
+  # zerx-lab/FluxDown is a monorepo: server-v*, cli-v*, mobile-v* and
+  # extension-v* releases are other products (server and cli carry Linux
+  # tarballs); only the desktop app's bare v<x.y.z> tags are this package.
+  stale_ignore: '^(server|cli|mobile|extension)-v'
+policy:
+  proprietary: false
+  dangerous_permissions: []

@@ -40,6 +40,7 @@ cat > "$app/io.flatpark.TestOne.metainfo.xml" <<'EOF'
     <p>Features:</p>
     <ul>
       <li>Feature alpha</li>
+      <li xml:lang="zh-Hans">特性 alpha 列表项</li>
       <li>Optional cap: <code>flatpak override --user --filesystem=home io.flatpark.TestOne</code></li>
     </ul>
   </description>
@@ -47,10 +48,10 @@ cat > "$app/io.flatpark.TestOne.metainfo.xml" <<'EOF'
     <p>一个用于 FlatPark 的测试应用。</p>
     <ul><li>特性 alpha</li></ul>
   </description>
-  <screenshots><screenshot type="default"><caption>Main</caption><caption xml:lang="zh-Hans">主界面</caption><image>https://example.org/shot.png</image></screenshot></screenshots>
+  <screenshots><screenshot type="default"><caption>Main</caption><caption xml:lang="zh-Hans">主界面</caption><image>https://example.org/shot.png</image></screenshot><screenshot><caption>Own</caption><image>https://raw.githubusercontent.com/flatpark/flatpark/main/registry/io.flatpark.TestOne/own.png</image></screenshot><screenshot><caption>Gone</caption><image>https://raw.githubusercontent.com/flatpark/flatpark/main/registry/io.flatpark.TestOne/gone.png</image></screenshot></screenshots>
   <releases>
     <release version="1.0" date="2026-01-01">
-      <description><p>First release.</p></description>
+      <description><p>First release.</p><ul><li>Fixed beta</li><li xml:lang="zh-Hans">修复 beta</li></ul></description>
       <description xml:lang="zh-Hans"><p>首个版本。</p></description>
     </release>
   </releases>
@@ -65,15 +66,39 @@ summary: First test app
 build:
   manifest: io.flatpark.TestOne.yml
 catalog:
-  category: Utilities
+  category: Utility
+  interface: cli
 website: https://example.org/
 maintainer:
   github: testuser
   email: test@example.org
+packaging:
+  - kind: seeded-config
+    detail:
+      en: Turns off the in-app updater on first launch.
+      zh-Hans: 首次启动时关闭应用内更新器。
+requires:
+  - remote: flathub
+    ref: org.winehq.Wine//stable-26.08
+    name: Wine
+EOF
+
+# catalog.interface: cli marks the app as a command-line tool (its launcher opens
+# in a terminal; the descriptor audit holds the two together).
+cat > "$app/io.flatpark.TestOne.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Test One
+Exec=test-one
+Terminal=true
 EOF
 
 # The listing date ("Recently added" sort) is read out of git, so the fixture
 # registry has to be a real repo for that field to be exercised at all.
+# A screenshot committed next to the metainfo (a 1x1 PNG): enrich reads it
+# from the checkout, since its main URL 404s until the PR merges.
+printf '%s' iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg== \
+    | base64 -d > "$app/own.png"
 git -C "$registry" init -q
 git -C "$registry" add -A
 git -C "$registry" -c user.name=test -c user.email=test@example.org -c commit.gpgsign=false \
@@ -105,6 +130,11 @@ assert_contains "$out" "\"text\": \"Optional cap: \""
 assert_contains "$out" "\"version\": \"1.0\""
 assert_contains "$out" "\"label\": \"MIT\""
 assert_contains "$out" "https://example.org/shot.png"
+assert_contains "$out" "\"registryFile\": \"registry/io.flatpark.TestOne/own.png\""
+assert_contains "$out" "\"url\": \"/screenshots/io.flatpark.TestOne-1-"
+ls "$data"/screenshots/io.flatpark.TestOne-1-*.webp >/dev/null || { echo "FAIL: registry screenshot not cached"; exit 1; }
+assert_contains "$out" "\"registryFile\": \"registry/io.flatpark.TestOne/gone.png\""
+assert_contains "$out" "\"missing\": true"
 # Permissions and sections are emitted as stable keys next to their English
 # text: the site translates the key and falls back to the text, so both have
 # to survive. A label without its key would silently pin the panel to English.
@@ -112,6 +142,8 @@ assert_contains "$out" "\"key\": \"share.network\""
 assert_contains "$out" "\"key\": \"socket.wayland\""
 assert_contains "$out" "\"key\": \"device.dri\""
 assert_contains "$out" "\"section\": \"utilities\""
+assert_contains "$out" "\"cli\": true"
+assert_contains "$out" "\"webUi\": false"
 # listing date: the commit that first added the app dir, independent of the
 # release date that drives "updated" (2026-01-01 here)
 assert_ok node -e "
@@ -124,13 +156,32 @@ assert_ok node -e "
 # <name> or <caption> makes the field an array, which renders as empty.
 assert_contains "$out" "\"caption\": \"Main\""
 assert_contains "$out" "First release."
-if grep -q "测试开发者\|一个用于\|特性 alpha\|主界面\|首个版本" "$out"; then
+assert_contains "$out" "Fixed beta"
+if grep -q "测试开发者\|一个用于\|特性 alpha\|主界面\|首个版本\|列表项\|修复 beta" "$out"; then
     echo "FAIL: xml:lang translation leaked into source-language content"
     exit 1
 fi
+# requires: installed alongside by the install command
+assert_contains "$out" "\"installCmd\": \"flatpak install flatpark io.flatpark.TestOne && flatpak install flathub org.winehq.Wine//stable-26.08\""
+assert_contains "$out" "\"name\": \"Wine\""
+
 # flatpark.yml-derived maintainer
 assert_contains "$out" "\"github\": \"testuser\""
+# catalog.interface: web — a terminal launcher that serves a browser page is marked Web UI,
+# not cli — the .desktop alone can't tell a local server from a CLI tool.
+sed -i 's/^  interface: cli$/  interface: web/' "$app/flatpark.yml"
+REGISTRY_DIR="$registry" DATA_DIR="$data" "$ROOT/scripts/gen-apps-json.sh" >/dev/null
+FLATPARK_DATA_DIR="$data" node "$ROOT/site/tools/enrich.mjs" >/dev/null 2>&1
+assert_contains "$out" "\"webUi\": true"
+assert_contains "$out" "\"cli\": false"
 # enrichment must strip the private source-path fields
 if grep -q "_manifest\|_srcDir" "$out"; then echo "FAIL: enriched file still has _ fields"; exit 1; fi
 assert_ok node -e "JSON.parse(require('fs').readFileSync('$out','utf8'))"
+# packaging transparency: declared seeded-config -> level adapted, detail kept per locale
+assert_ok node -e "
+const a = JSON.parse(require('fs').readFileSync('$out','utf8'));
+if (a.packaging.level !== 'adapted') throw new Error('level ' + a.packaging.level);
+const i = a.packaging.items[0];
+if (i.kind !== 'seeded-config' || i.detail['zh-Hans'] !== '首次启动时关闭应用内更新器。') throw new Error(JSON.stringify(i));
+"
 echo "test_enrich: PASS"

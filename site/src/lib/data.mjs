@@ -17,3 +17,12 @@ export function loadApps() {
     .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// An extension (build.extends) is not an app of its own: enrich.mjs files it
+// under this section, its parent's page lists it, collections show it like any
+// member, and the app lists and counts leave it out unless asked for it. A
+// shared extension (build.shared) has no parent: it files here too, and its
+// page lists the apps that use it.
+export const EXTENSIONS_SECTION = 'extensions';
+export const isExtension = (app) => !!app.parent || !!app.shared;
+

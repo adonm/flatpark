@@ -47,6 +47,8 @@ const updatedLabel = ago(app.updated);
   data-approved={app.upstreamApproved ? '1' : '0'}
   data-updated={app.updated || ''}
   data-added={app.added || ''}
+  data-installs={app.stats?.installs30 ?? ''}
+  data-stars={app.upstreamStars?.count ?? ''}
 >
   {
     app.icon ? (
@@ -76,6 +78,8 @@ const updatedLabel = ago(app.updated);
     <p class="line-clamp-2 text-sm text-muted">{app.summary}</p>
     <div class="mt-2 flex flex-wrap items-center gap-2">
       <span class="chip chip-mode">{sectionText}</span>
+      {app.cli && <span class="chip" title={t('appcard.cli.title')}>{t('appcard.cli')}</span>}
+      {app.webUi && <span class="chip" title={t('appcard.webui.title')}>{t('appcard.webui')}</span>}
       {updatedLabel && <span class="text-xs text-muted">{t('appcard.updated', { label: updatedLabel })}</span>}
     </div>
   </div>
